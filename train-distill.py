@@ -84,8 +84,8 @@ batch_size = args.batch_size
 neg_seq_length = args.neg_seq_len
 train_ratio = args.train_ratio
 
-fasttext_emb_path = "dataset/corpus/vectors/am-ft.vec"
-word2vec_emb_path = "dataset/corpus/vectors/am-w2v.vec"
+fasttext_emb_path = "dataset/corpus/am-ft.vec"
+word2vec_emb_path = "dataset/corpus/am-w2v.vec"
 train_corpus_path = "dataset/corpus/clean-am-train-corpus.txt"
 charset_path = "data/am-charset.txt"
 
