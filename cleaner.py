@@ -48,11 +48,11 @@ def clean_file(in_path, out_path, keep_line_prob=1.0, min_token_per_line=1):
                 if random.random() < keep_line_prob:
                     line = clean(line)
 
-                line = line.strip()
-                is_not_valid = bool(re.match('[!"#$%&\'()*+,-\\.\/:;<=>?@\[\]^_`{|}~፠፡።፣፤፥፦፧፨፩፪፫፬፭፮፯፰፱፲፳፴፵፶፷፸፹፺፻፼\d ]+$', line))
+                    line = line.strip()
+                    is_not_valid = bool(re.match('[!"#$%&\'()*+,-\\.\/:;<=>?@\[\]^_`{|}~፠፡።፣፤፥፦፧፨፩፪፫፬፭፮፯፰፱፲፳፴፵፶፷፸፹፺፻፼\d ]+$', line))
 
-                if not is_not_valid and len(line.split()) >= min_token_per_line:
-                    fout.write(line + "\n")
+                    if not is_not_valid and len(line.split()) >= min_token_per_line:
+                        fout.write(line + "\n")
 
 
-clean_file('dataset/corpus/corpus.txt', 'dataset/corpus/clean-am-corpus.txt')
+clean_file('dataset/corpus/corpus.txt', 'dataset/corpus/clean-am-corpus.txt', keep_line_prob=0.1)
