@@ -1,3 +1,6 @@
+from numpy import random
+
+
 def build_charset(charset_file, space_index=-1):
     """
     returns character mapping to integer and vice versa
@@ -28,17 +31,18 @@ def word2ids(char2int, word, pad_char, max_len):
         ids = ids + [char2int[pad_char]] * (max_len - len(ids))
         return ids
 
-def load_word_embeddings(file_path: str, target_words: set =None, header: bool =True) -> dict:
+def load_word_embeddings(file_path: str, target_words: set =None, header: bool =True, word_prob=1.0) -> dict:
     word2vec = {}
     with open(file_path, encoding='utf-8') as f:
         if header:
             line = f.readline()
             n_vecs, dim = int(line.split(' ')[0]), int(line.split(' ')[1])
         for line in f:
-            line = line.strip().split(' ')
-            word = line[0]
-            vec = line[1:]
-            if target_words == None or word in target_words:
-                word2vec[word] = [float(x) for x in vec]
+            if random.random() < word_prob:
+                line = line.strip().split(' ')
+                word = line[0]
+                vec = line[1:]
+                if target_words == None or word in target_words:
+                    word2vec[word] = [float(x) for x in vec]
                 
     return word2vec

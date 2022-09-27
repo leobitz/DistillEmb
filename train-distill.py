@@ -89,11 +89,12 @@ word2vec_emb_path = "dataset/corpus/vectors/am-w2v.vec"
 train_corpus_path = "dataset/corpus/clean-am-train-corpus.txt"
 charset_path = "data/am-charset.txt"
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path)
-w2v_emb = lib.load_word_embeddings(fasttext_emb_path)
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=0.5)
+w2v_emb = lib.load_word_embeddings(fasttext_emb_path, target_words=ft_emb)
 
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
-vocab.remove('</s>')
+if '</s>' in vocab:
+    vocab.remove('</s>')
 words = open(train_corpus_path, encoding='utf-8').read().split()
 words = [word for word in words if word in vocab]
 
