@@ -77,7 +77,7 @@ print(args.learning_rate)
 
 logger = TensorBoardLogger("logs", name="distill")
 early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=3, verbose=False, mode="min")
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[early_stop_callback])
+trainer = pl.Trainer.from_argparse_args(args, logger=logger)
 
 
 batch_size = args.batch_size
@@ -89,8 +89,8 @@ word2vec_emb_path = "dataset/corpus/am-w2v.vec"
 train_corpus_path = "dataset/corpus/clean-am-train-corpus.txt"
 charset_path = "data/am-charset.txt"
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=0.5)
-w2v_emb = lib.load_word_embeddings(fasttext_emb_path, target_words=ft_emb)
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=0.5) # load about 75% of the vectors
+w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
 
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
