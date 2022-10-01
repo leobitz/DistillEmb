@@ -18,8 +18,6 @@ import lib
 import models
 from distill_dataset import DistillDataset
 
-parser = ArgumentParser()
-
 
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
@@ -66,6 +64,7 @@ class DistillModule(pl.LightningModule):
         parser.add_argument("--step_gamma", type=float, default=0.95)
         return parent_parser
 
+parser = ArgumentParser()
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--neg_seq_len", type=int, default=32)
 parser.add_argument("--train_ratio", type=float, default=0.9)
@@ -73,7 +72,6 @@ parser.add_argument("--train_ratio", type=float, default=0.9)
 parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
-print(args.learning_rate)
 
 logger = TensorBoardLogger("logs", name="distill")
 early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=3, verbose=False, mode="min")

@@ -67,3 +67,5 @@ class DistillEmb(nn.Module):
         if model_name != None:
             checkpoint = torch.load(model_name)
             self.load_state_dict(checkpoint['model_state_dict'])
+
+
