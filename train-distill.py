@@ -1,14 +1,10 @@
-import os
 import random
 from argparse import ArgumentParser
-from collections import Counter
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn
@@ -18,6 +14,9 @@ import lib
 import models
 from distill_dataset import DistillDataset
 
+random.seed(1000)
+torch.random.manual_seed(10000)
+np.random.seed(1000)
 parser = ArgumentParser()
 
 
@@ -63,7 +62,7 @@ class DistillModule(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("DistillModule")
         parser.add_argument("--learning_rate", type=float, default=0.001)
-        parser.add_argument("--step_gamma", type=float, default=0.95)
+        parser.add_argument("--step_gamma", type=float, default=0.90)
         return parent_parser
 
 parser.add_argument("--batch_size", type=int, default=64)
@@ -76,20 +75,20 @@ args = parser.parse_args()
 print(args.learning_rate)
 
 logger = TensorBoardLogger("logs", name="distill")
-early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=3, verbose=False, mode="min")
-trainer = pl.Trainer.from_argparse_args(args, logger=logger)
+early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
+trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[early_stop_callback])
 
 
 batch_size = args.batch_size
 neg_seq_length = args.neg_seq_len
 train_ratio = args.train_ratio
 
-fasttext_emb_path = "dataset/corpus/am-ft.vec"
-word2vec_emb_path = "dataset/corpus/am-w2v.vec"
-train_corpus_path = "dataset/corpus/clean-am-train-corpus.txt"
+fasttext_emb_path = "dataset/corpus/tig/tig-ft.vec"
+word2vec_emb_path = "dataset/corpus/tig/tig-w2v.vec"
+train_corpus_path = "dataset/corpus/tig/clean-tig-corpus.txt"
 charset_path = "data/am-charset.txt"
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=0.5) # load about 75% of the vectors
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=.75) # load about 50% of the vectors
 w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
 
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
