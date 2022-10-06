@@ -15,14 +15,14 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 import lib
-import models
+import distill_emb_model
 from distill_dataset import DistillDataset
 
 
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.model =  models.DistillEmb(n_chars=len(
+        self.model =  distill_emb_model.DistillEmb(n_chars=len(
             train_dataset.char2int), output_size=300, dropout=0.0)
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
 

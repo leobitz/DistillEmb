@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import os
 import warnings
 from os import mkdir
-import models
+import distill_emb_model
 
 import numpy as np
 import pandas as pd
@@ -187,7 +187,7 @@ wordTagger = WordsTagger(proc=preprocessor)
 
 
 if args.emb_type == 'CNN':
-    embeder = models.DistillEmb(n_chars=len(
+    embeder = distill_emb_model.DistillEmb(n_chars=len(
         char2int), output_size=300, dropout=0.0)
     print("Using DistillEmb Embedding")
 else:

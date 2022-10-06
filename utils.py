@@ -22,6 +22,7 @@ FILE_ARGUMENTS = "arguments.json"
 FILE_MODEL = "model.pth"
 
 
+
 def save_json_file(obj, file_path):
     with open(file_path, "w", encoding="utf8") as f:
         f.write(json.dumps(obj, ensure_ascii=False))
