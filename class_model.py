@@ -9,7 +9,10 @@ class LSTMTextClassifier(nn.Module):
              fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
         super(LSTMTextClassifier, self).__init__()
 
-        self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True,
+        if num_rnn_layers == 1:
+            self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True)
+        else:
+            self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True,
                  num_layers=num_rnn_layers, dropout=rnn_dropout)
         self.fc1 = nn.Linear(hidden_size*2, n_outputs)
 
