@@ -33,7 +33,7 @@ def word2ids(char2int, word, pad_char, max_len):
 
 def load_word_embeddings(file_path: str, target_words: set =None, header: bool =True, word_prob=1.0) -> dict:
     word2vec = {}
-    with open(file_path, encoding='utf-8') as f:
+    with open(file_path, encoding='utf-8', errors='ignore') as f:
         if header:
             line = f.readline()
             n_vecs, dim = int(line.split(' ')[0]), int(line.split(' ')[1])
