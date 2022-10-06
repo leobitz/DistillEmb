@@ -16,13 +16,14 @@ import lib
 
 class ClassifyModule(pl.LightningModule):
 
-    def __init__(self, class_indexices, **kwargs) -> None:
+    def __init__(self, class_indexices, word2index, **kwargs) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=[class_indexices])
+        self.save_hyperparameters(ignore=['class_indexices', "word2index"])
         self.model = LSTMTextClassifier(vocab_size=self.hparams.vocab_size,
                                         input_size=self.hparams.embedding_dim,
                                         hidden_size=self.hparams.hidden_dim,
                                         n_outputs=self.hparams.num_classes,
+                                        word2index=word2index,
                                         train_embeder=self.hparams.train_embedding,
                                         fc_dropout=self.hparams.fc_dropout,
                                         rnn_dropout=self.hparams.rnn_dropout,
@@ -182,12 +183,13 @@ logger = TensorBoardLogger("logs", name=args.exp_name)
 
 trainer = pl.Trainer.from_argparse_args(args, logger=logger)
 
-m = ClassifyModule(list(label2index.values()))
+m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
 if args.emb_type != "CNN" and args.vector_file != None:
     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
-    m.model.init_emb(word2vec=word2vec)
+    n_loaded = m.model.init_emb(w2v=word2vec)
+    print("Loaded embs in %", n_loaded  * 100 / len(vocab))
 
-trainer.fit(model=m, **vars(args),
+trainer.fit(model=m,  
             train_dataloaders=train_dataloader,
             val_dataloaders=test_dataloader)

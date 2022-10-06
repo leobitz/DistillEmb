@@ -5,10 +5,11 @@ import numpy as np
 
 class LSTMTextClassifier(nn.Module):
 
-    def __init__(self, vocab_size, input_size, hidden_size, n_outputs,  train_embeder=True,
+    def __init__(self, vocab_size, input_size, hidden_size, n_outputs, word2index,  train_embeder=True,
              fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
         super(LSTMTextClassifier, self).__init__()
-
+        self.word2index = word2index
+        self.input_size = input_size
         if num_rnn_layers == 1:
             self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True)
         else:
@@ -47,7 +48,7 @@ class LSTMTextClassifier(nn.Module):
             self.apply(fn)
         k = 0
         if w2v != None:
-            vecs = np.random.uniform(-np.sqrt(0.06), np.sqrt(0.06), (len(self.word2index), self.output_size))
+            vecs = np.random.uniform(-np.sqrt(0.06), np.sqrt(0.06), (len(self.word2index), self.input_size))
             for ik, (kw, vw) in enumerate(self.word2index.items()):
                 if kw in w2v:
                     vecs[vw] = np.array(w2v[kw])
