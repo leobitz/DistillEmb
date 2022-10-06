@@ -43,10 +43,10 @@ class ClassifyModule(pl.LightningModule):
         acc, pre, rec, f1 = self._report(preds, targets, self.class_indexices)
 
         self.log("train_loss", loss)
-        self.log("val_f1", f1)
-        self.log("val_precision", pre)
-        self.log("val_recall", rec)
-        self.log("val_acc", acc)
+        self.log("train_f1", f1)
+        self.log("train_precision", pre)
+        self.log("train_recall", rec)
+        self.log("train_acc", acc)
 
         return {"loss": loss, "f1": f1}
 
@@ -88,22 +88,22 @@ class ClassifyModule(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("SeqPred")
-        parser.add_argument("--learning_rate", type=float, default=0.001)
-        parser.add_argument('--embedding_dim', type=int, default=100,
+        parser.add_argument("--learning-rate", type=float, default=0.001)
+        parser.add_argument('--embedding-dim', type=int, default=100,
                             help='the dimension of the embedding layer')
-        parser.add_argument('--hidden_dim', type=int, default=128,
+        parser.add_argument('--hidden-dim', type=int, default=128,
                             help='the dimension of the RNN hidden state')
-        parser.add_argument('--num_rnn_layers', type=int,
+        parser.add_argument('--num-rnn-layers', type=int,
                             default=1, help='the number of RNN layers')
-        parser.add_argument('--weight_decay', type=float,
+        parser.add_argument('--weight-decay', type=float,
                             default=0., help='the L2 normalization parameter')
-        parser.add_argument('--fc_dropout', type=float,
+        parser.add_argument('--fc-dropout', type=float,
                             default=0.1, help='dropout on fc layer')
-        parser.add_argument('--step_gamma', type=float,
+        parser.add_argument('--step-gamma', type=float,
                             default=0.9, help='stem gamma for lr schedular')
-        parser.add_argument('--rnn_dropout', type=float,
+        parser.add_argument('--rnn-dropout', type=float,
                             default=0.1, help='dropout between rnn layer')
-        parser.add_argument('--emb_dropout', type=float,
+        parser.add_argument('--emb-dropout', type=float,
                             default=0.1, help='dropout on embedding layer')
         parser.add_argument("--word2vec",  type=str,
                             help="word embedding file path")
@@ -169,10 +169,10 @@ test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index,
 
 print(train_data.shape, test_data.shape)
 
-train_dataloader = DataLoader(
-    train_dataset, shuffle=True, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=True)
-test_dataloader = DataLoader(
-    test_dataset, shuffle=False, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=False)
+train_dataloader = DataLoader( 
+    train_dataset,   shuffle=True, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=True)
+test_dataloader = DataLoader( 
+    test_dataset,  shuffle=False, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=False)
 
 args.num_classes = len(class_labels)
 args.train_embedding = True

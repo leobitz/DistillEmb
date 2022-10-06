@@ -55,4 +55,4 @@ def clean_file(in_path, out_path, keep_line_prob=1.0, min_token_per_line=1):
                         fout.write(line + "\n")
 
 
-clean_file('dataset/corpus/train.txt', 'dataset/corpus/clean-am-corpus.txt', keep_line_prob=1.0)
+clean_file('dataset/corpus/tig/train.txt', 'dataset/corpus/tig/clean-tig-corpus.txt', keep_line_prob=1.0)
