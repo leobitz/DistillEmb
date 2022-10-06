@@ -38,14 +38,8 @@ class LSTMTextClassifier(nn.Module):
         x = self.fc1(x)
         return x
 
-    def init_emb(self, fn=None, word2vec=None):
-        if fn != None:
-            self.apply(fn)
-        if word2vec != None:
-            self.embeder.init(word2vec)
 
-    
-    def init(self, fn=None, w2v=None):
+    def init_emb(self, fn=None, w2v=None):
         if fn != None:
             self.apply(fn)
         k = 0

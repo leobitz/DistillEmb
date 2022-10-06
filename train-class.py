@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from class_model import LSTMTextClassifier
 from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
-
+import lib
 
 class ClassifyModule(pl.LightningModule):
 
@@ -152,7 +152,7 @@ for line in train_data[:, 1]:
         max_seq_len = len(line_words)
     words.extend(line_words)
 
-vocab = sorted(set(words))
+vocab = set(words)
 word2index = {v: k for k, v in enumerate(vocab)}
 label2index = {v: k for k, v in enumerate(class_labels)}
 
@@ -182,7 +182,12 @@ logger = TensorBoardLogger("logs", name=args.exp_name)
 
 trainer = pl.Trainer.from_argparse_args(args, logger=logger)
 
+m = ClassifyModule(list(label2index.values()))
 
-trainer.fit(model=ClassifyModule(list(label2index.values()), **vars(args)),
+if args.emb_type != "CNN" and args.vector_file != None:
+    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
+    m.model.init_emb(word2vec=word2vec)
+
+trainer.fit(model=m, **vars(args),
             train_dataloaders=train_dataloader,
             val_dataloaders=test_dataloader)
