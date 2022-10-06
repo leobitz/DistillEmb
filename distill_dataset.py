@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 import lib
 import random
 
+UNK_WORD = "<###>"
 
 class DistillDataset(Dataset):
     
@@ -60,3 +61,66 @@ class DistillDataset(Dataset):
         return target_chars, pos_w2v, pos_ft, neg_w2v, neg_ft
 
 
+
+class ClassificationDataset(Dataset):
+
+    def __init__(self, data_rows,  word2index, label2index, charset_path, 
+            max_len=100,  word_output=False, max_word_len=13, pad_char='_', exclude_classes=set([])):
+        self.char2int, self.int2char = lib.build_charset(charset_path, space_index=0)
+        
+        self.max_word_len = max_word_len
+        self.max_seq_len = max_len
+        self.pad_char = pad_char
+
+        self.word_output = word_output
+
+        self.data = []
+        self.labels = []
+        for ir, row in enumerate(data_rows):
+            label = row[0]
+            text = row[1]
+            if label in exclude_classes:
+                continue
+            line = text.strip().split(' ')
+
+            self.data.append(line)
+            self.labels.append(label)
+
+        self.class_labels = tuple(sorted(set(self.labels)))
+
+        self.word2index = word2index
+        self.label2index = label2index
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        inputs = self.data[idx]
+        label = self.labels[idx]
+
+        if len(inputs) > self.max_seq_len:
+            inputs = inputs[:self.max_seq_len]
+
+        if self.word_output:
+            inputs = [self.word2index[x] if x in self.word2index else self.word2index[UNK_WORD] for x in inputs]
+            inputs = inputs + [self.word2index[UNK_WORD]] * (self.max_seq_len - len(inputs))
+        else:
+            inputs = lib.sen_word_to_word_ids(inputs, self.char2int, self.pad_char, self.max_word_len)
+
+        return inputs, self.label2index[label], len(inputs)
+
+def collate_fun(batch):
+
+    batch_words, batch_labels, batch_mask_idx = [], [], []
+    # print(batch_labels)
+    for (_words, _labels, _mask_id) in batch:
+        batch_words.append(torch.LongTensor(_words))
+        batch_labels.append(_labels)
+        batch_mask_idx.append(_mask_id)
+    
+    batch_mask_idx = torch.LongTensor(batch_mask_idx)
+    batch_words = torch.stack(batch_words)
+    batch_labels = torch.LongTensor(batch_labels)
+
+    return batch_words, batch_labels, batch_mask_idx

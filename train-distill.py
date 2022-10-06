@@ -11,7 +11,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 import lib
-import models
+import distill_emb_model
 from distill_dataset import DistillDataset
 
 random.seed(1000)
@@ -23,7 +23,7 @@ parser = ArgumentParser()
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.model =  models.DistillEmb(n_chars=len(
+        self.model =  distill_emb_model.DistillEmb(n_chars=len(
             train_dataset.char2int), output_size=300, dropout=0.0)
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
 
@@ -65,6 +65,7 @@ class DistillModule(pl.LightningModule):
         parser.add_argument("--step_gamma", type=float, default=0.90)
         return parent_parser
 
+parser = ArgumentParser()
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--neg_seq_len", type=int, default=32)
 parser.add_argument("--train_ratio", type=float, default=0.9)
@@ -72,7 +73,6 @@ parser.add_argument("--train_ratio", type=float, default=0.9)
 parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
-print(args.learning_rate)
 
 logger = TensorBoardLogger("logs", name="distill")
 early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")

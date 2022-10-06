@@ -46,3 +46,16 @@ def load_word_embeddings(file_path: str, target_words: set =None, header: bool =
                     word2vec[word] = [float(x) for x in vec]
                 
     return word2vec
+
+def ids2word(int2char, ids):
+    return ''.join([int2char[i] for i in ids])
+
+def ids2clean_word(int2char, ids):
+    return ''.join([int2char[i] for i in ids if int2char[i] != 's'])
+
+def sen_idx_to_word_ids(index2word, sen_idx,  pad_char,  max_word_len):
+    return [word2ids(index2word[idx], 
+                        pad_char,  max_word_len) for idx in sen_idx]
+
+def sen_word_to_word_ids(words, char2int, pad_char,  max_word_len):
+    return [word2ids(char2int, word, pad_char,  max_word_len) for word in words]
