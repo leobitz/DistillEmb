@@ -10,7 +10,7 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
 
-from class_model import LSTMTextClassifier
+from class_model import  create_model
 from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
 import lib
 
@@ -19,16 +19,7 @@ class ClassifyModule(pl.LightningModule):
     def __init__(self, class_indexices, word2index, **kwargs) -> None:
         super().__init__()
         self.save_hyperparameters(ignore=['class_indexices', "word2index"])
-        self.model = LSTMTextClassifier(vocab_size=self.hparams.vocab_size,
-                                        input_size=self.hparams.embedding_dim,
-                                        hidden_size=self.hparams.hidden_dim,
-                                        n_outputs=self.hparams.num_classes,
-                                        word2index=word2index,
-                                        train_embeder=self.hparams.train_embedding,
-                                        fc_dropout=self.hparams.fc_dropout,
-                                        rnn_dropout=self.hparams.rnn_dropout,
-                                        emb_dropout=self.hparams.emb_dropout,
-                                        num_rnn_layers=self.hparams.num_rnn_layers)
+        self.model = create_model(self.hparams, word2index)
 
         self.criterion = nn.CrossEntropyLoss()
         self.class_indexices = class_indexices
@@ -108,6 +99,8 @@ class ClassifyModule(pl.LightningModule):
                             default=0.1, help='dropout on embedding layer')
         parser.add_argument("--word2vec",  type=str,
                             help="word embedding file path")
+        parser.add_argument('--emb-type', type=str, default="CNN",
+                    help='CNN or word_emb')
         return parent_parser
 
 
@@ -120,8 +113,7 @@ parser.add_argument('--data-folder', type=str, default="ner",
                     help='RNN type, choice: "lstm", "gru"')
 parser.add_argument('--charset-path', type=str, default="ner",
                     help='character set file')
-parser.add_argument('--emb-type', type=str, default="CNN",
-                    help='CNN or word_emb')
+
 parser.add_argument('--emb-file', type=str, default="CNN",
                     help='path to fasttext or word2vec file')
 parser.add_argument('--exp-name', type=str, default="CNN",
@@ -163,10 +155,10 @@ if args.max_seq_len > max_seq_len:
 print("using max_seq_len", args.max_seq_len)
 
 train_dataset = ClassificationDataset(data_rows=train_data, word2index=word2index, label2index=label2index,
-                                      charset_path=args.charset_path, max_len=args.max_seq_len, word_output=True)
+                                      charset_path=args.charset_path, pad_char=' ', max_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
 
 test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index, label2index=label2index,
-                                     charset_path=args.charset_path, max_len=args.max_seq_len, word_output=True)
+                                     charset_path=args.charset_path, pad_char=' ',  max_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
 
 print(train_data.shape, test_data.shape)
 

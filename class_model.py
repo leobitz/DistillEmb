@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence, pad_sequence
 import numpy as np
 
+from distill_emb_model import DistillEmb, create_am_distill_emb
+
 class LSTMTextClassifier(nn.Module):
 
     def __init__(self, vocab_size, input_size, hidden_size, n_outputs, word2index,  train_embeder=True,
@@ -66,37 +68,86 @@ class LSTMTextClassifier(nn.Module):
 
 class CharLSTMTextClassifier(nn.Module):
 
-    def __init__(self, n_input, embed_size, n_outputs,  embeder, train_embeder=True, dropout=0.6, cdropout=0.1):
+    def __init__(self, input_size, hidden_size, n_outputs,  train_embeder=True,
+             fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
         super(CharLSTMTextClassifier, self).__init__()
-        # print(embed_size)
-        self.lstm = nn.GRU(n_input, embed_size, bidirectional=True, batch_first=False, )
-        self.embeder = embeder
-        self.fc1 = nn.Linear(embed_size*2, n_outputs)
-        self.embeder.requires_grad_(train_embeder)
-        self.dropout0 = nn.Dropout2d(cdropout)
-        self.dropout = nn.Dropout(dropout)
-        self.norm0 = nn.LayerNorm(n_input)
-        self.norm1 = nn.LayerNorm(embed_size*2)
+        
+        self.input_size = input_size
+        if num_rnn_layers == 1:
+            self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True)
+        else:
+            self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True,
+                 num_layers=num_rnn_layers, dropout=rnn_dropout)
 
-    def forward(self, x, hidden=None):
+        self.fc1 = nn.Linear(hidden_size*2, n_outputs)
+        
+        self.embedding = create_am_distill_emb(emb_dropout)
+        self.embedding.requires_grad_(train_embeder)
+        
+        
+        self.emb_dropout = nn.Dropout2d(emb_dropout)
+        self.fc_dropout = nn.Dropout(fc_dropout)
+        self.norm0 = nn.LayerNorm(300)
+        self.norm1 = nn.LayerNorm(hidden_size*2)
+
+
+    def forward(self, x, masks):
         xs = []
-        for i in range(x.shape[1]):
-            xx = self.embeder(x[:, i])
-            xs.append(xx)
-        x = torch.stack(xs)
-        x = self.dropout(x)
-        x = self.norm0(x)
-        x, (h, c) = self.lstm(x, hidden[0])
+        
+        seq_length = masks#.sum(1)
+        max_len = masks.max()
+        pad_char_idx = self.embedding.char2int[self.embedding.pad_char]
+        pad_emb = self.embedding(torch.ones((1, self.embedding.n_inputs), dtype=torch.long, device=x[0].device)  * pad_char_idx).view(-1)
+
+        for i in range(len(x)):
+            word_emb = self.embedding(x[i])
+            remain_len = max_len - len(x[i])
+            remain = pad_emb.repeat(remain_len, 1)
+            word_emb = torch.cat([word_emb, remain], dim=0)
+            xs.append(word_emb)
+
+        embeds = torch.stack(xs)
+        sorted_seq_length, perm_idx = seq_length.sort(descending=True)
+        embeds = embeds[perm_idx, :]
+        
+        pack_sequence = pack_padded_sequence(embeds, lengths=sorted_seq_length.cpu(), batch_first=True)
+        packed_output, (h, c) = self.lstm(pack_sequence)
+        lstm_out = pad_packed_sequence(packed_output, batch_first=True)
 
         x = torch.cat((h[0], h[1]), dim=1)
-        print(x.shape)
-        x = self.dropout(x)
+        x = self.fc_dropout(x)
         x = self.norm1(x)
+
         x = self.fc1(x)
-        return x, (h, None)
+        return x
 
-
-    def init_model(self, fn, model_name=None):
+    def init_emb(self, model_name=None):
         if model_name != None:
             checkpoint = torch.load(model_name)
-            self.embeder.load_state_dict(checkpoint['model_state_dict'])
+            self.embedding.load_state_dict(checkpoint['model_state_dict'])
+
+
+def create_model(hparams, word2index):
+    if hparams.emb_type != "CNN":
+        model = LSTMTextClassifier(vocab_size=hparams.vocab_size,
+                        input_size=hparams.embedding_dim,
+                        hidden_size=hparams.hidden_dim,
+                        n_outputs=hparams.num_classes,
+                        word2index=word2index,
+                        train_embeder=hparams.train_embedding,
+                        fc_dropout=hparams.fc_dropout,
+                        rnn_dropout=hparams.rnn_dropout,
+                        emb_dropout=hparams.emb_dropout,
+                        num_rnn_layers=hparams.num_rnn_layers)
+    else:
+        model = CharLSTMTextClassifier(
+                        input_size=hparams.embedding_dim,
+                        hidden_size=hparams.hidden_dim,
+                        n_outputs=hparams.num_classes,
+                        train_embeder=hparams.train_embedding,
+                        fc_dropout=hparams.fc_dropout,
+                        rnn_dropout=hparams.rnn_dropout,
+                        emb_dropout=hparams.emb_dropout,
+                        num_rnn_layers=hparams.num_rnn_layers)
+
+    return model

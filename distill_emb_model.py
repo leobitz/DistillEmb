@@ -1,13 +1,20 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import lib
 
 class DistillEmb(nn.Module):
     
-    def __init__(self, n_chars, output_size, char_emb_size=64, kernel=5, dropout=0.1):
+    def __init__(self, char2int, output_size, pad_char, char_emb_size=64, kernel=5, dropout=0.1):
         super(DistillEmb, self).__init__()
-        self.embedding = nn.Embedding(n_chars, char_emb_size)
-        self.conv1 = nn.Conv1d(13, 64, kernel, stride=1)
+
+        self.n_inputs = 13 # number of characters
+        self.output_size = output_size
+        self.char2int = char2int
+        self.pad_char = pad_char
+
+        self.embedding = nn.Embedding(len(char2int), char_emb_size)
+        self.conv1 = nn.Conv1d(self.n_inputs, 64, kernel, stride=1)
         self.conv2 = nn.Conv1d(64, 128, kernel, stride=1)
         self.conv3 = nn.Conv1d(128, 192, kernel, stride=1)
         self.conv4 = nn.Conv1d(192, 256, 3, stride=1)
@@ -15,9 +22,8 @@ class DistillEmb(nn.Module):
         self.fc1 = nn.Linear(512, output_size)
 
         self.activation = nn.ReLU()
-        self.output_size = output_size
 
-        self.norm0 = nn.LayerNorm([13, char_emb_size])
+        self.norm0 = nn.LayerNorm([self.n_inputs, char_emb_size])
         self.norm1 = nn.LayerNorm([64, 30])
         self.norm2 = nn.LayerNorm([128, 13])
         self.norm3 = nn.LayerNorm([192, 4])
@@ -61,11 +67,14 @@ class DistillEmb(nn.Module):
         x = self.fc1(x)
         return x
 
-    def init_model(self, fn=None, model_name=None):
-        if fn:
-            self.apply(fn)
+    def init_model(self, model_name=None):
+
         if model_name != None:
             checkpoint = torch.load(model_name)
             self.load_state_dict(checkpoint['model_state_dict'])
 
 
+def create_am_distill_emb(dropout=0.0):
+    char2int, _ = lib.build_charset('data/am-charset.txt', 0)
+    model = DistillEmb(char2int,  output_size=300, pad_char=' ', dropout=dropout)
+    return model

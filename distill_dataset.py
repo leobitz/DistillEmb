@@ -9,7 +9,7 @@ UNK_WORD = "<###>"
 class DistillDataset(Dataset):
     
     def __init__(self, words, vocab, vocab2index, w2v_vectors, ft_vectors, charset_path,
-         neg_seq_len=32,  max_word_len=13, pad_char='_'):
+         neg_seq_len=32,  max_word_len=13, pad_char=' '):
         self.words = words
         self.vocab = vocab
         self.vocab2index = vocab2index
@@ -65,7 +65,7 @@ class DistillDataset(Dataset):
 class ClassificationDataset(Dataset):
 
     def __init__(self, data_rows,  word2index, label2index, charset_path, 
-            max_len=100,  word_output=False, max_word_len=13, pad_char='_', exclude_classes=set([])):
+            max_len=100,  word_output=False, max_word_len=13, pad_char=' ', exclude_classes=set([])):
         self.char2int, self.int2char = lib.build_charset(charset_path, space_index=0)
         
         self.max_word_len = max_word_len
@@ -120,7 +120,7 @@ def collate_fun(batch):
         batch_mask_idx.append(_mask_id)
     
     batch_mask_idx = torch.LongTensor(batch_mask_idx)
-    batch_words = torch.stack(batch_words)
+    # batch_words = torch.stack(batch_words)
     batch_labels = torch.LongTensor(batch_labels)
 
     return batch_words, batch_labels, batch_mask_idx
