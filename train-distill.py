@@ -23,7 +23,7 @@ parser = ArgumentParser()
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.model =  distill_emb_model.create_am_distill_emb(self.charset_path, 0.0)
+        self.model =  distill_emb_model.create_am_distill_emb(charset_path, 0.0)
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
 
         self.save_hyperparameters(ignore=['charset_path'])
@@ -78,6 +78,8 @@ parser.add_argument('--charset-path', type=str,
                     help='character set file')
 parser.add_argument('--exp-name', type=str, default="distill",
                     help='experiment name')
+parser.add_argument('--corpus', type=str, default="distill",
+                    help='corpus file')
 
 parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
