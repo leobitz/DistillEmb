@@ -24,17 +24,23 @@ class ClassifyModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['class_indexices', "word2index", "charset_path", "test_models", "test_trail_ids"])
         self.model = create_model(self.hparams, word2index)
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss() if self.hparams.num_classes > 1 else nn.BCELoss()
         self.class_indexices = class_indexices
 
     def training_step(self, batch, batch_idx):
 
         x, y, seq_len = batch
         preds = self.model(x, seq_len)
-        loss = self.criterion(preds, y)
 
-        preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
+        if self.hparams.num_class == 1:
+            sig_pred = torch.sigmoid(preds.view(-1))
+            preds = torch.round(sig_pred.detach().cpu()).numpy()
+            loss = self.criterion(sig_pred, y)
+        else:
+            preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
+
         targets = y.detach().cpu().numpy()
+        print(targets.shape, preds.shape, self.hparams.num_class)
         acc, pre, rec, f1 = self._report(preds, targets, self.class_indexices)
 
         self.log("train_loss", loss)
@@ -60,6 +66,7 @@ class ClassifyModule(pl.LightningModule):
 
         preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
         targets = y.detach().cpu().numpy()
+
         acc, pre, rec, f1 = self._report(
             preds, targets, class_indexices=self.class_indexices)
 
@@ -72,12 +79,16 @@ class ClassifyModule(pl.LightningModule):
         return {"loss": loss, "f1": f1}
 
     def _report(self, Y_preds, Y_test, class_indexices):
+        if self.hparams.num_classes > 1:
+            average='macro'
+        else:
+            average='micro'
         pre = precision_score(
-            Y_test, Y_preds, labels=class_indexices, average='macro', zero_division=0)
+            Y_test, Y_preds, labels=class_indexices, average=average, zero_division=0)
         rec = recall_score(Y_test, Y_preds, labels=class_indexices,
-                           average='macro', zero_division=0)
+                           average=average, zero_division=0)
         f1 = f1_score(Y_test, Y_preds, labels=class_indexices,
-                      average='macro', zero_division=0)
+                      average=average, zero_division=0)
         acc = accuracy_score(Y_test, Y_preds)
         return acc, pre, rec, f1
 
@@ -178,7 +189,7 @@ train_dataloader = DataLoader(
 test_dataloader = DataLoader(
     test_dataset,  shuffle=False, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=False)
 
-args.num_classes = len(class_labels)
+args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
 args.vocab_size = len(vocab)
 
@@ -193,10 +204,10 @@ trainer = pl.Trainer.from_argparse_args(
 
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
-if args.emb_type != "CNN" and args.vector_file != None:
-    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
-    n_loaded = m.model.init_emb(w2v=word2vec)
-    print("Loaded embs in %", n_loaded * 100 / len(vocab))
+# if args.emb_type != "CNN" and args.vector_file != None:
+#     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
+#     n_loaded = m.model.init_emb(w2v=word2vec)
+#     print("Loaded embs in %", n_loaded * 100 / len(vocab))
 
 if args.test_models:
     trainer.fit(model=m,
