@@ -2,4 +2,5 @@ models/*
 dataset/*
 logs/*
 __pycache__/*
+saves/*
 

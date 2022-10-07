@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from class_model import  create_model
 from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
 import lib
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 
 class ClassifyModule(pl.LightningModule):
 
@@ -57,7 +59,8 @@ class ClassifyModule(pl.LightningModule):
 
         preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
         targets = y.detach().cpu().numpy()
-        acc, pre, rec, f1 = self._report(preds, targets, class_indexices=self.class_indexices)
+        acc, pre, rec, f1 = self._report(
+            preds, targets, class_indexices=self.class_indexices)
 
         self.log("val_loss", loss)
         self.log("val_f1", f1)
@@ -119,7 +122,8 @@ parser.add_argument('--exp-name', type=str, default="CNN",
                     help='experiment name')
 parser.add_argument('--dataset-folder', type=str, default="tig",
                     help='datatset folder')
-
+parser.add_argument('--trail-id', type=int, default=1,
+                    help='model save folder name')
 
 parser = ClassifyModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
@@ -161,26 +165,31 @@ test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index,
 
 print(train_data.shape, test_data.shape)
 
-train_dataloader = DataLoader( 
+train_dataloader = DataLoader(
     train_dataset,   shuffle=True, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=True)
-test_dataloader = DataLoader( 
+test_dataloader = DataLoader(
     test_dataset,  shuffle=False, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=False)
 
 args.num_classes = len(class_labels)
 args.train_embedding = True
 args.vocab_size = len(vocab)
 
+checkpoint_cb = ModelCheckpoint(
+    save_top_k=-1,
+    dirpath=f'saves/{args.exp_name}/{args.trail_id}',
+    filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
 logger = TensorBoardLogger("logs", name=args.exp_name)
 
-trainer = pl.Trainer.from_argparse_args(args, logger=logger)
+trainer = pl.Trainer.from_argparse_args(
+    args, logger=logger, callbacks=[checkpoint_cb])
 
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
 if args.emb_type != "CNN" and args.vector_file != None:
     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
     n_loaded = m.model.init_emb(w2v=word2vec)
-    print("Loaded embs in %", n_loaded  * 100 / len(vocab))
+    print("Loaded embs in %", n_loaded * 100 / len(vocab))
 
-trainer.fit(model=m,  
+trainer.fit(model=m,
             train_dataloaders=train_dataloader,
             val_dataloaders=test_dataloader)
