@@ -120,7 +120,7 @@ def collate_fun(batch):
         batch_mask_idx.append(_mask_id)
     
     batch_mask_idx = torch.LongTensor(batch_mask_idx)
-    # batch_words = torch.stack(batch_words)
+    batch_words = torch.stack(batch_words)
     batch_labels = torch.LongTensor(batch_labels)
 
     return batch_words, batch_labels, batch_mask_idx
