@@ -18,7 +18,7 @@ class ClassifyModule(pl.LightningModule):
 
     def __init__(self, class_indexices, word2index, **kwargs) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=['class_indexices', "word2index"])
+        self.save_hyperparameters(ignore=['class_indexices', "word2index", "charset_path"])
         self.model = create_model(self.hparams, word2index)
 
         self.criterion = nn.CrossEntropyLoss()
@@ -113,7 +113,6 @@ parser.add_argument('--data-folder', type=str, default="ner",
                     help='RNN type, choice: "lstm", "gru"')
 parser.add_argument('--charset-path', type=str, default="ner",
                     help='character set file')
-
 parser.add_argument('--emb-file', type=str, default="CNN",
                     help='path to fasttext or word2vec file')
 parser.add_argument('--exp-name', type=str, default="CNN",

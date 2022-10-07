@@ -68,7 +68,7 @@ class LSTMTextClassifier(nn.Module):
 
 class CharLSTMTextClassifier(nn.Module):
 
-    def __init__(self, input_size, hidden_size, n_outputs,  train_embeder=True,
+    def __init__(self, input_size, hidden_size, n_outputs, charset_path, train_embeder=True,
              fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
         super(CharLSTMTextClassifier, self).__init__()
         
@@ -81,7 +81,7 @@ class CharLSTMTextClassifier(nn.Module):
 
         self.fc1 = nn.Linear(hidden_size*2, n_outputs)
         
-        self.embedding = create_am_distill_emb(emb_dropout)
+        self.embedding = create_am_distill_emb(charset_path, emb_dropout)
         self.embedding.requires_grad_(train_embeder)
         
         
@@ -144,6 +144,7 @@ def create_model(hparams, word2index):
                         input_size=hparams.embedding_dim,
                         hidden_size=hparams.hidden_dim,
                         n_outputs=hparams.num_classes,
+                        charset_path=hparams.charset_path,
                         train_embeder=hparams.train_embedding,
                         fc_dropout=hparams.fc_dropout,
                         rnn_dropout=hparams.rnn_dropout,

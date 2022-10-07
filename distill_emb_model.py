@@ -74,7 +74,7 @@ class DistillEmb(nn.Module):
             self.load_state_dict(checkpoint['model_state_dict'])
 
 
-def create_am_distill_emb(dropout=0.0):
-    char2int, _ = lib.build_charset('data/am-charset.txt', 0)
+def create_am_distill_emb(charset_path, dropout=0.0):
+    char2int, _ = lib.build_charset(charset_path, 0)
     model = DistillEmb(char2int,  output_size=300, pad_char=' ', dropout=dropout)
     return model

@@ -23,11 +23,10 @@ parser = ArgumentParser()
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.model =  distill_emb_model.DistillEmb(n_chars=len(
-            train_dataset.char2int), output_size=300, dropout=0.0)
+        self.model =  distill_emb_model.create_am_distill_emb(self.charset_path, 0.0)
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
 
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['charset_path'])
 
     def training_step(self, batch, batch_idx):
 
@@ -68,13 +67,23 @@ class DistillModule(pl.LightningModule):
 parser = ArgumentParser()
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--neg_seq_len", type=int, default=32)
-parser.add_argument("--train_ratio", type=float, default=0.9)
+parser.add_argument("--train-ratio", type=float, default=0.9)
+parser.add_argument("--vector-load-ratio", type=float, default=0.9)
+
+parser.add_argument('--fasttext-path', type=str, 
+                    help='path to fasttext  file')
+parser.add_argument('--word2vec-path', type=str, 
+                    help='path to fasttext  file')
+parser.add_argument('--charset-path', type=str, 
+                    help='character set file')
+parser.add_argument('--exp-name', type=str, default="distill",
+                    help='experiment name')
 
 parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
-logger = TensorBoardLogger("logs", name="distill")
+logger = TensorBoardLogger("logs", name=args.exp_name)
 early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
 trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[early_stop_callback])
 
@@ -83,12 +92,12 @@ batch_size = args.batch_size
 neg_seq_length = args.neg_seq_len
 train_ratio = args.train_ratio
 
-fasttext_emb_path = "dataset/corpus/tig/tig-ft.vec"
-word2vec_emb_path = "dataset/corpus/tig/tig-w2v.vec"
-train_corpus_path = "dataset/corpus/tig/clean-tig-corpus.txt"
-charset_path = "data/am-charset.txt"
+fasttext_emb_path = args.fasttext_path
+word2vec_emb_path = args.word2vec_path 
+train_corpus_path = args.corpus
+charset_path = args.charset_path 
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=.75) # load about 50% of the vectors
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
 w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
 
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
@@ -111,11 +120,11 @@ index2vocab = {k: v for k, v in enumerate(train_vocab)}
 
 train_dataset = DistillDataset(words=words, vocab=train_vocab,
                                vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-                               charset_path="data/am-charset.txt", neg_seq_len=neg_seq_length, max_word_len=13, pad_char='_')
+                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
                               w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-                              charset_path="data/am-charset.txt", neg_seq_len=neg_seq_length, max_word_len=13, pad_char='_')
+                              charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 
 train_dataloader = DataLoader(
