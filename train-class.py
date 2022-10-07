@@ -14,13 +14,14 @@ from class_model import  create_model
 from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
 import lib
 from pytorch_lightning.callbacks import ModelCheckpoint
-
+import os
+import numpy as np
 
 class ClassifyModule(pl.LightningModule):
 
     def __init__(self, class_indexices, word2index, **kwargs) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=['class_indexices', "word2index", "charset_path"])
+        self.save_hyperparameters(ignore=['class_indexices', "word2index", "charset_path", "test_models", "test_trail_ids"])
         self.model = create_model(self.hparams, word2index)
 
         self.criterion = nn.CrossEntropyLoss()
@@ -124,6 +125,10 @@ parser.add_argument('--dataset-folder', type=str, default="tig",
                     help='datatset folder')
 parser.add_argument('--trail-id', type=int, default=1,
                     help='model save folder name')
+parser.add_argument('--test-models', type=bool, default=False,
+                    help='flag to test instead of train')
+parser.add_argument('--test-trail-ids', type=str,
+                    help='trial ids to test separated by -')
 
 parser = ClassifyModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
@@ -131,7 +136,10 @@ args = parser.parse_args()
 
 
 train_file = f"{args.dataset_folder}/clean-train.csv"
-test_file = f"{args.dataset_folder}/clean-dev.csv"
+if args.test_models:
+    test_file = f"{args.dataset_folder}/clean-test.csv"
+else:
+    test_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
 test_data = pd.read_csv(test_file).to_numpy()
@@ -190,6 +198,33 @@ if args.emb_type != "CNN" and args.vector_file != None:
     n_loaded = m.model.init_emb(w2v=word2vec)
     print("Loaded embs in %", n_loaded * 100 / len(vocab))
 
-trainer.fit(model=m,
-            train_dataloaders=train_dataloader,
-            val_dataloaders=test_dataloader)
+if args.test_models:
+    trainer.fit(model=m,
+                train_dataloaders=train_dataloader,
+                val_dataloaders=test_dataloader)
+else:
+    ids = args.test_trail_ids.split("-")
+    trail_accs = []
+    max_model_name = None
+    max_val_acc = 0
+    for idx in ids:
+        folder_name = f'saves/{args.exp_name}/{idx}'
+        names = sorted(os.listdir(folder_name), lambda x: int(x.split('-')[0]))
+        accs = [float(x[-12:-5]) for x in names]
+        max_index = np.argmax(accs)
+        if accs[max_index] > max_val_acc:
+            max_val_acc = accs[max_index]
+            max_model_name = f"{folder_name}/{names[max_index]}"
+        trail_accs.append(accs)
+    trail_accs = np.array(trail_accs)
+    mean_trail_accs = trail_accs.mean(axis=0)
+    max_epoch = mean_trail_accs.argmax()
+
+    test_accs = []
+    for idx in ids:
+        folder_name = f'saves/{args.exp_name}/{idx}'
+        names = sorted(os.listdir(folder_name), lambda x: int(x.split('-')[0]))
+        name = names[max_epoch]
+        path = f"{folder_name}/{name}"
+        m = m.load_from_checkpoint(path)
+        trainer.test(model=m, dataloaders=test_dataloader)
