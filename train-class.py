@@ -32,15 +32,15 @@ class ClassifyModule(pl.LightningModule):
         x, y, seq_len = batch
         preds = self.model(x, seq_len)
 
-        if self.hparams.num_class == 1:
+        if self.hparams.num_classes == 1:
             sig_pred = torch.sigmoid(preds.view(-1))
             preds = torch.round(sig_pred.detach().cpu()).numpy()
-            loss = self.criterion(sig_pred, y)
+            loss = self.criterion(sig_pred, y.float())
         else:
+            loss = self.criterion(preds, y)
             preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
 
         targets = y.detach().cpu().numpy()
-        print(targets.shape, preds.shape, self.hparams.num_class)
         acc, pre, rec, f1 = self._report(preds, targets, self.class_indexices)
 
         self.log("train_loss", loss)
@@ -62,9 +62,15 @@ class ClassifyModule(pl.LightningModule):
 
         x, y, seq_len = batch
         preds = self.model(x, seq_len)
-        loss = self.criterion(preds, y)
+        
+        if self.hparams.num_classes == 1:
+            sig_pred = torch.sigmoid(preds.view(-1))
+            preds = torch.round(sig_pred.detach().cpu()).numpy()
+            loss = self.criterion(sig_pred, y.float())
+        else:
+            loss = self.criterion(preds, y)
+            preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
 
-        preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
         targets = y.detach().cpu().numpy()
 
         acc, pre, rec, f1 = self._report(
@@ -75,6 +81,32 @@ class ClassifyModule(pl.LightningModule):
         self.log("val_precision", pre)
         self.log("val_recall", rec)
         self.log("val_acc", acc)
+
+        return {"loss": loss, "f1": f1}
+
+    def test_step(self, batch, batch_idx):
+
+        x, y, seq_len = batch
+        preds = self.model(x, seq_len)
+
+        if self.hparams.num_classes == 1:
+            sig_pred = torch.sigmoid(preds.view(-1))
+            preds = torch.round(sig_pred.detach().cpu()).numpy()
+            loss = self.criterion(sig_pred, y.float())
+        else:
+            loss = self.criterion(preds, y)
+            preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
+
+        targets = y.detach().cpu().numpy()
+
+        acc, pre, rec, f1 = self._report(
+            preds, targets, class_indexices=self.class_indexices)
+
+        self.log("test_loss", loss)
+        self.log("test_f1", f1)
+        self.log("test_precision", pre)
+        self.log("test_recall", rec)
+        self.log("test_acc", acc)
 
         return {"loss": loss, "f1": f1}
 
@@ -136,8 +168,11 @@ parser.add_argument('--dataset-folder', type=str, default="tig",
                     help='datatset folder')
 parser.add_argument('--trail-id', type=int, default=1,
                     help='model save folder name')
-parser.add_argument('--test-models', type=bool, default=False,
+parser.add_argument('--train-model', action='store_true',
                     help='flag to test instead of train')
+parser.add_argument('--no-train-model', action='store_false',
+                    help='flag to test instead of train')
+                    
 parser.add_argument('--test-trail-ids', type=str,
                     help='trial ids to test separated by -')
 
@@ -145,10 +180,11 @@ parser = ClassifyModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
+args.test_models = not args.train_model
 
 train_file = f"{args.dataset_folder}/clean-train.csv"
 if args.test_models:
-    test_file = f"{args.dataset_folder}/clean-test.csv"
+    test_file = f"{args.dataset_folder}/clean-dev.csv"
 else:
     test_file = f"{args.dataset_folder}/clean-dev.csv"
 
@@ -185,9 +221,9 @@ test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index,
 print(train_data.shape, test_data.shape)
 
 train_dataloader = DataLoader(
-    train_dataset,   shuffle=True, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=True)
+    train_dataset,   shuffle=True, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=True)
 test_dataloader = DataLoader(
-    test_dataset,  shuffle=False, collate_fn=collate_fun, batch_size=args.batch_size, drop_last=False)
+    test_dataset,  shuffle=False, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=False)
 
 args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
@@ -195,21 +231,21 @@ args.vocab_size = len(vocab)
 
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
+    every_n_epochs=1,
     dirpath=f'saves/{args.exp_name}/{args.trail_id}',
     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
 logger = TensorBoardLogger("logs", name=args.exp_name)
 
-trainer = pl.Trainer.from_argparse_args(
-    args, logger=logger, callbacks=[checkpoint_cb])
+trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
 
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
-# if args.emb_type != "CNN" and args.vector_file != None:
-#     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
-#     n_loaded = m.model.init_emb(w2v=word2vec)
-#     print("Loaded embs in %", n_loaded * 100 / len(vocab))
+if args.emb_type != "CNN" and args.vector_file != None:
+    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
+    n_loaded = m.model.init_emb(w2v=word2vec)
+    print("Loaded embs in %", n_loaded * 100 / len(vocab))
 
-if args.test_models:
+if not args.test_models:
     trainer.fit(model=m,
                 train_dataloaders=train_dataloader,
                 val_dataloaders=test_dataloader)
@@ -220,7 +256,7 @@ else:
     max_val_acc = 0
     for idx in ids:
         folder_name = f'saves/{args.exp_name}/{idx}'
-        names = sorted(os.listdir(folder_name), lambda x: int(x.split('-')[0]))
+        names = sorted(os.listdir(folder_name), key=lambda x: int(x.split('-')[0].split('=')[1]))
         accs = [float(x[-12:-5]) for x in names]
         max_index = np.argmax(accs)
         if accs[max_index] > max_val_acc:
@@ -230,12 +266,19 @@ else:
     trail_accs = np.array(trail_accs)
     mean_trail_accs = trail_accs.mean(axis=0)
     max_epoch = mean_trail_accs.argmax()
-
+    args.word2index = word2index
+    args.class_indexices = list(label2index.values())
     test_accs = []
     for idx in ids:
         folder_name = f'saves/{args.exp_name}/{idx}'
-        names = sorted(os.listdir(folder_name), lambda x: int(x.split('-')[0]))
+        names = sorted(os.listdir(folder_name), key=lambda x: int(x.split('-')[0].split('=')[1]))
         name = names[max_epoch]
         path = f"{folder_name}/{name}"
-        m = m.load_from_checkpoint(path)
-        trainer.test(model=m, dataloaders=test_dataloader)
+        checkpoint = torch.load(path)
+        print(path)
+        # result = trainer.test(model=m, dataloaders=test_dataloader)
+        # m.load_state_dict(checkpoint['state_dict'])
+        # result = trainer.test(model=m, dataloaders=test_dataloader)
+        m = ClassifyModule.load_from_checkpoint(path, **vars(args))
+        result = trainer.validate(m, dataloaders=test_dataloader)
+        print(result)

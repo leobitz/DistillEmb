@@ -3,4 +3,5 @@ dataset/*
 logs/*
 __pycache__/*
 saves/*
+lightning_logs/*
 
