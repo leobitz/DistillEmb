@@ -106,13 +106,17 @@ class CharLSTMTextClassifier(nn.Module):
             word_emb = torch.cat([word_emb, remain], dim=0)
             xs.append(word_emb)
 
-        embeds = torch.stack(xs)
+        x = torch.stack(xs)
         sorted_seq_length, perm_idx = seq_length.sort(descending=True)
-        embeds = embeds[perm_idx, :]
+        x = x[perm_idx, :]
         
-        pack_sequence = pack_padded_sequence(embeds, lengths=sorted_seq_length.cpu(), batch_first=True)
-        packed_output, (h, c) = self.lstm(pack_sequence)
-        lstm_out = pad_packed_sequence(packed_output, batch_first=True)
+        x = self.emb_dropout(x)
+        x = self.norm0(x)
+
+        packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
+        packed_x, (h, c) = self.lstm(packed_x)
+
+        x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
 
         x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
