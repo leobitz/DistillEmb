@@ -1,5 +1,6 @@
 
 from argparse import ArgumentParser
+import random
 
 import pandas as pd
 import pytorch_lightning as pl
@@ -9,13 +10,15 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
-
+import sys
 from class_model import  create_model
 from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
 import lib
 from pytorch_lightning.callbacks import ModelCheckpoint
 import os
 import numpy as np
+import warnings
+warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 class ClassifyModule(pl.LightningModule):
 
@@ -91,14 +94,15 @@ class ClassifyModule(pl.LightningModule):
 
         if self.hparams.num_classes == 1:
             sig_pred = torch.sigmoid(preds.view(-1))
-            preds = torch.round(sig_pred.detach().cpu()).numpy()
+            preds = torch.round(sig_pred.detach().cpu()).long().numpy()
             loss = self.criterion(sig_pred, y.float())
         else:
             loss = self.criterion(preds, y)
             preds = torch.argmax(preds.detach().cpu(), dim=1).numpy()
 
+        
         targets = y.detach().cpu().numpy()
-
+        # print(targets, preds)
         acc, pre, rec, f1 = self._report(
             preds, targets, class_indexices=self.class_indexices)
 
@@ -114,7 +118,7 @@ class ClassifyModule(pl.LightningModule):
         if self.hparams.num_classes > 1:
             average='macro'
         else:
-            average='micro'
+            average='binary'
         pre = precision_score(
             Y_test, Y_preds, labels=class_indexices, average=average, zero_division=0)
         rec = recall_score(Y_test, Y_preds, labels=class_indexices,
@@ -144,8 +148,6 @@ class ClassifyModule(pl.LightningModule):
                             default=0.1, help='dropout between rnn layer')
         parser.add_argument('--emb-dropout', type=float,
                             default=0.1, help='dropout on embedding layer')
-        parser.add_argument("--word2vec",  type=str,
-                            help="word embedding file path")
         parser.add_argument('--emb-type', type=str, default="CNN",
                     help='CNN or word_emb')
         return parent_parser
@@ -156,74 +158,87 @@ parser.add_argument("--batch-size", type=int, default=64)
 parser.add_argument('--vector-file', type=str, help="word embedding file")
 parser.add_argument('--max-seq-len', type=int, default=200,
                     help='max sequence length within training')
-parser.add_argument('--data-folder', type=str, default="ner",
-                    help='RNN type, choice: "lstm", "gru"')
-parser.add_argument('--charset-path', type=str, default="ner",
+
+parser.add_argument('--charset-path', type=str, 
                     help='character set file')
-parser.add_argument('--emb-file', type=str, default="CNN",
-                    help='path to fasttext or word2vec file')
-parser.add_argument('--exp-name', type=str, default="CNN",
+parser.add_argument('--exp-name', type=str, 
                     help='experiment name')
 parser.add_argument('--dataset-folder', type=str, default="tig",
                     help='datatset folder')
-parser.add_argument('--trail-id', type=int, default=1,
+
+parser.add_argument('--trial-id', type=int, default=1,
                     help='model save folder name')
 parser.add_argument('--train-model', action='store_true',
                     help='flag to test instead of train')
 parser.add_argument('--no-train-model', action='store_false',
                     help='flag to test instead of train')
-                    
-parser.add_argument('--test-trail-ids', type=str,
+parser.add_argument('--test-trial-ids', type=str,
                     help='trial ids to test separated by -')
+
+parser.add_argument('--data-size', type=float,
+                            default=1.0, help='downstream data size in %')
+parser.add_argument('--vocab-file', type=str,
+                    help='File containing all the vocabs for the target task')
 
 parser = ClassifyModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
+if args.emb_type != 'CNN':
+    if args.vocab_file == None:
+        sys.exit('No vocab file provided')
+    if args.vector_file == None or not os.path.exists(args.vector_file):
+        sys.exit("Embedding file doesn't exist")
+else:
+    if args.vector_file == None:
+        sys.exit('DistillEmb model doesnt exits')
+
 args.test_models = not args.train_model
 
 train_file = f"{args.dataset_folder}/clean-train.csv"
-if args.test_models:
-    test_file = f"{args.dataset_folder}/clean-dev.csv"
-else:
-    test_file = f"{args.dataset_folder}/clean-dev.csv"
+test_file = f"{args.dataset_folder}/clean-test.csv"
+dev_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
+np.random.shuffle(train_data)
+new_data_size = int(len(train_data) * args.data_size)
+train_data = train_data[:new_data_size]
+
 test_data = pd.read_csv(test_file).to_numpy()
+dev_data = pd.read_csv(dev_file).to_numpy()
 
 class_labels = sorted(set(train_data[:, 0]))
 print("class_labels", class_labels)
 
 
-words = [UNK_WORD]
-max_seq_len = 0
-for line in train_data[:, 1]:
-    line_words = line.split(' ')
-    if len(line_words) > max_seq_len:
-        max_seq_len = len(line_words)
-    words.extend(line_words)
-
-vocab = set(words)
-word2index = {v: k for k, v in enumerate(vocab)}
+word2index = None
 label2index = {v: k for k, v in enumerate(class_labels)}
+if args.vocab_file != None and args.emb_type != "CNN":
+    task_tokens = open(args.vocab_file, encoding='utf-8').read().split()
+    vocab = set(task_tokens)
+    if UNK_WORD not in vocab:
+        vocab.update(UNK_WORD)
 
-print("max_seq_len", max_seq_len)
-if args.max_seq_len > max_seq_len:
-    args.max_seq_len = max_seq_len
-print("using max_seq_len", args.max_seq_len)
+    word2index = {v: k for k, v in enumerate(task_tokens)}
 
 train_dataset = ClassificationDataset(data_rows=train_data, word2index=word2index, label2index=label2index,
-                                      charset_path=args.charset_path, pad_char=' ', max_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+                                      charset_path=args.charset_path, pad_char=' ', 
+                                      max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
 
 test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index, label2index=label2index,
-                                     charset_path=args.charset_path, pad_char=' ',  max_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
-
-print(train_data.shape, test_data.shape)
+                                     charset_path=args.charset_path, pad_char=' ', 
+                                    max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+dev_dataset = ClassificationDataset(data_rows=dev_data, word2index=word2index, label2index=label2index,
+                                     charset_path=args.charset_path, pad_char=' ', 
+                                    max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
 
 train_dataloader = DataLoader(
     train_dataset,   shuffle=True, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=True)
 test_dataloader = DataLoader(
     test_dataset,  shuffle=False, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=False)
+dev_dataloader = DataLoader(
+    dev_dataset,  shuffle=False, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=False)
+
 
 args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
@@ -232,28 +247,32 @@ args.vocab_size = len(vocab)
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
     every_n_epochs=1,
-    dirpath=f'saves/{args.exp_name}/{args.trail_id}',
+    dirpath=f'saves/{args.exp_name}/{args.trial_id}',
     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
 logger = TensorBoardLogger("logs", name=args.exp_name)
 
 trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
+if args.test_models:
+    trainer.enable_progress_bar = False
 
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
-if args.emb_type != "CNN" and args.vector_file != None:
-    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab)
+if args.emb_type != "CNN":
+    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab, header=False)
     n_loaded = m.model.init_emb(w2v=word2vec)
     print("Loaded embs in %", n_loaded * 100 / len(vocab))
 
 if not args.test_models:
     trainer.fit(model=m,
                 train_dataloaders=train_dataloader,
-                val_dataloaders=test_dataloader)
+                val_dataloaders=dev_dataloader)
+
 else:
-    ids = args.test_trail_ids.split("-")
+    ids = args.test_trial_ids.split("-")
     trail_accs = []
     max_model_name = None
     max_val_acc = 0
+
     for idx in ids:
         folder_name = f'saves/{args.exp_name}/{idx}'
         names = sorted(os.listdir(folder_name), key=lambda x: int(x.split('-')[0].split('=')[1]))
@@ -269,16 +288,49 @@ else:
     args.word2index = word2index
     args.class_indexices = list(label2index.values())
     test_accs = []
+    final_names = []
     for idx in ids:
         folder_name = f'saves/{args.exp_name}/{idx}'
         names = sorted(os.listdir(folder_name), key=lambda x: int(x.split('-')[0].split('=')[1]))
         name = names[max_epoch]
         path = f"{folder_name}/{name}"
-        checkpoint = torch.load(path)
+        final_names.append(path)
         print(path)
-        # result = trainer.test(model=m, dataloaders=test_dataloader)
-        # m.load_state_dict(checkpoint['state_dict'])
-        # result = trainer.test(model=m, dataloaders=test_dataloader)
         m = ClassifyModule.load_from_checkpoint(path, **vars(args))
-        result = trainer.validate(m, dataloaders=test_dataloader)
-        print(result)
+        m.eval()
+        m.freeze()
+        result = trainer.test(m, dataloaders=test_dataloader)
+        test_accs.append([result[0][x] for x in sorted(result[0].keys())])
+
+    print("=========================== Test RESULT ==========================")
+    print("max_epoch", max_epoch)
+    ave = np.mean(test_accs, axis=0)
+    print(sorted(result[0].keys()))
+    print(ave)
+    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
+    m.eval()
+    m.freeze()
+    max_test_result = trainer.test(m, dataloaders=test_dataloader)
+    print("max_test_result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("=========================== Test END ==============================")
+    
+    val_accs = []
+    for name in final_names:
+        m = ClassifyModule.load_from_checkpoint(name, **vars(args))
+        m.eval()
+        m.freeze()
+        result = trainer.test(m, dataloaders=test_dataloader)
+        val_accs.append([result[0][x] for x in sorted(result[0].keys())])
+
+    print("=========================== Validation Result  ====================")
+    ave = np.mean(val_accs, axis=0)
+    print(sorted(result[0].keys()))
+    print(ave)
+    print(max_model_name)
+    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
+    m.eval()
+    m.freeze()
+    max_test_result = trainer.test(m, dataloaders=test_dataloader)
+    print("max_test_result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("=========================== Validation END   ========================")
+

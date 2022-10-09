@@ -65,26 +65,31 @@ class DistillDataset(Dataset):
 class ClassificationDataset(Dataset):
 
     def __init__(self, data_rows,  word2index, label2index, charset_path, 
-            max_len=100,  word_output=False, max_word_len=13, pad_char=' ', exclude_classes=set([])):
+            max_seq_len=100,  word_output=False, max_word_len=13, pad_char=' ', exclude_classes=set([])):
         self.char2int, self.int2char = lib.build_charset(charset_path, space_index=0)
         
         self.max_word_len = max_word_len
-        self.max_seq_len = max_len
         self.pad_char = pad_char
 
         self.word_output = word_output
 
         self.data = []
         self.labels = []
+        self.max_seq_len = 0
         for ir, row in enumerate(data_rows):
             label = row[0]
             text = row[1]
             if label in exclude_classes:
                 continue
             line = text.strip().split(' ')
-
+            if len(line) > self.max_seq_len:
+                self.max_seq_len = len(line)
             self.data.append(line)
             self.labels.append(label)
+
+        # if data max length is greater than what the user specified, use the user-specified max length
+        if max_seq_len < self.max_seq_len:
+            self.max_seq_len = max_seq_len
 
         self.class_labels = tuple(sorted(set(self.labels)))
 
@@ -120,7 +125,8 @@ def collate_fun(batch):
         batch_mask_idx.append(_mask_id)
     
     batch_mask_idx = torch.LongTensor(batch_mask_idx)
-    batch_words = torch.stack(batch_words)
+    if len(batch_words[0].shape) == 1: # for word-index outputs only
+        batch_words = torch.stack(batch_words)
     batch_labels = torch.LongTensor(batch_labels)
 
     return batch_words, batch_labels, batch_mask_idx
