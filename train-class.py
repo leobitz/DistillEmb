@@ -12,7 +12,7 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
 from torch.utils.data import DataLoader
 import sys
 from class_model import  create_model
-from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
+from distill_dataset import ClassificationDataset, UNK_WORD, distill_collate_fun, emb_collate_fun
 import lib
 from pytorch_lightning.callbacks import ModelCheckpoint
 import os
@@ -231,6 +231,10 @@ test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index,
 dev_dataset = ClassificationDataset(data_rows=dev_data, word2index=word2index, label2index=label2index,
                                      charset_path=args.charset_path, pad_char=' ', 
                                     max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+if args.emb_type == 'CNN':
+    collate_fun = distill_collate_fun
+else:
+    collate_fun = emb_collate_fun
 
 train_dataloader = DataLoader(
     train_dataset,   shuffle=True, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=True)

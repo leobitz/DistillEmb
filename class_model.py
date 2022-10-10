@@ -91,22 +91,20 @@ class CharLSTMTextClassifier(nn.Module):
         self.norm1 = nn.LayerNorm(hidden_size*2)
 
 
-    def forward(self, x, masks):
+    def forward(self, x, mask_idx):
         xs = []
         
-        seq_length = masks#.sum(1)
-        max_len = masks.max()
-        pad_char_idx = self.embedding.char2int[self.embedding.pad_char]
-        pad_emb = self.embedding(torch.ones((1, self.embedding.n_inputs), dtype=torch.long, device=x[0].device)  * pad_char_idx).view(-1)
+        seq_length = mask_idx#.sum(1)
 
-        for i in range(len(x)):
-            word_emb = self.embedding(x[i])
-            remain_len = max_len - len(x[i])
-            remain = pad_emb.repeat(remain_len, 1)
-            word_emb = torch.cat([word_emb, remain], dim=0)
-            xs.append(word_emb)
+
+        for i in range(x.shape[0]):
+            xx = self.embedding(x[i, :mask_idx[i]])
+            remain_len = x.shape[1] - mask_idx[i]
+            xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
+            xs.append(xx)
 
         x = torch.stack(xs)
+
         sorted_seq_length, perm_idx = seq_length.sort(descending=True)
         x = x[perm_idx, :]
         
