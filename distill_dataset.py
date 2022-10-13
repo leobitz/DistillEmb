@@ -5,7 +5,9 @@ import lib
 import random
 
 UNK_WORD = "<###>"
-
+# char2int, int2char = lib.build_charset("data/am-charset.txt", space_index=0)
+PAD_TENSOR = [0, 0, 0, 0, 28, 3, 3, 3, 30, 0, 0, 0, 0]
+# print(PAD_TENSOR)
 class DistillDataset(Dataset):
     
     def __init__(self, words, vocab, vocab2index, w2v_vectors, ft_vectors, charset_path,
@@ -115,7 +117,27 @@ class ClassificationDataset(Dataset):
 
         return inputs, self.label2index[label], len(inputs)
 
-def collate_fun(batch):
+def distill_collate_fun(batch):
+
+    batch_words, batch_labels, batch_mask_idx = [], [], []
+    max_len = 0
+    for (_words, _label, _mask_id) in batch:
+        if max_len < len(_words):
+            max_len = len(_words)
+
+    for (_words, _label, _mask_id) in batch:
+        _words = _words + [PAD_TENSOR] * (max_len - len(_words))
+        batch_words.append(_words)
+        batch_labels.append(_label)
+        batch_mask_idx.append(_mask_id)
+
+    batch_words = torch.LongTensor(batch_words,)
+    batch_labels = torch.LongTensor(batch_labels)
+    batch_mask_idx = torch.LongTensor(batch_mask_idx)
+
+    return batch_words, batch_labels, batch_mask_idx
+    
+def emb_collate_fun(batch):
 
     batch_words, batch_labels, batch_mask_idx = [], [], []
     # print(batch_labels)
@@ -125,8 +147,8 @@ def collate_fun(batch):
         batch_mask_idx.append(_mask_id)
     
     batch_mask_idx = torch.LongTensor(batch_mask_idx)
-    if len(batch_words[0].shape) == 1: # for word-index outputs only
-        batch_words = torch.stack(batch_words)
+    # if len(batch_words[0].shape) == 1: # for word-index outputs only
+    #     batch_words = torch.stack(batch_words)
     batch_labels = torch.LongTensor(batch_labels)
 
     return batch_words, batch_labels, batch_mask_idx
