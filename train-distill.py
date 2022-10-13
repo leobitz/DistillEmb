@@ -105,8 +105,11 @@ w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
     vocab.remove('</s>')
-words = open(train_corpus_path, encoding='utf-8').read().split()
+print("Finished loading vectors")
+words = lib.load_corpus_words(train_corpus_path, line_prob=args.vector_load_ratio)
 words = [word for word in words if word in vocab]
+print("# of tokens: ", len(words))
+print("# of vocab: ", len(vocab))
 
 train_size = int(len(vocab) * train_ratio)
 vocab = list(vocab)
