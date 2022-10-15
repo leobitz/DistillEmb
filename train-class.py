@@ -246,7 +246,6 @@ dev_dataloader = DataLoader(
 
 args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
-args.vocab_size = len(vocab)
 
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
