@@ -33,13 +33,24 @@ class DistillModule(pl.LightningModule):
         x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
         z = self.model(x)
 
-        wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        floss = self.triplet_loss(z, pos_ft, neg_ft)
-        loss = (floss + wloss) / 2
-        self.log("train_loss", loss)
-        self.log("train_ft_loss", floss)
-        self.log("train_w2v_loss", wloss)
+        loss = self.triplet_loss(z, pos_w2v, neg_w2v)
+        # floss = self.triplet_loss(z, pos_ft, neg_ft)
+        # loss = (floss + wloss) / 2
+        self.log("val_loss", loss)
+        # self.log("val_ft_loss", floss)
+        # self.log("val_w2v_loss", wloss)
+
+        # wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
+        # floss = self.triplet_loss(z, pos_ft, neg_ft)
+        # loss = (floss + wloss) / 2
+        # self.log("train_loss", loss)
+        # self.log("train_ft_loss", floss)
+        # self.log("train_w2v_loss", wloss)
         return loss
+
+    def training_epoch_end(self, outputs) -> None:
+        loss = sum(output['loss'] for output in outputs) / len(outputs)
+        self.log("epoch_train_loss", loss)
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.learning_rate)
@@ -50,12 +61,12 @@ class DistillModule(pl.LightningModule):
         x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
         z = self.model(x)
 
-        wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        floss = self.triplet_loss(z, pos_ft, neg_ft)
-        loss = (floss + wloss) / 2
+        loss = self.triplet_loss(z, pos_w2v, neg_w2v)
+        # floss = self.triplet_loss(z, pos_ft, neg_ft)
+        # loss = (floss + wloss) / 2
         self.log("val_loss", loss)
-        self.log("val_ft_loss", floss)
-        self.log("val_w2v_loss", wloss)
+        # self.log("val_ft_loss", floss)
+        # self.log("val_w2v_loss", wloss)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -81,13 +92,18 @@ parser.add_argument('--exp-name', type=str, default="distill",
 parser.add_argument('--corpus', type=str, default="distill",
                     help='corpus file')
 
+parser.add_argument('--early-stop', type=int, default=0,  help='1 for early stop, 0 for max epoch train')
+
 parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
 logger = TensorBoardLogger("logs", name=args.exp_name)
-early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[early_stop_callback])
+cbs = []
+if args.early_stop == 1:
+    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
+    cbs.append(early_stop_callback)
+trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=cbs)
 
 
 batch_size = args.batch_size
