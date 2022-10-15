@@ -12,7 +12,7 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
 from torch.utils.data import DataLoader
 import sys
 from class_model import  create_model
-from distill_dataset import ClassificationDataset, UNK_WORD, collate_fun
+from distill_dataset import ClassificationDataset, UNK_WORD, distill_collate_fun, emb_collate_fun
 import lib
 from pytorch_lightning.callbacks import ModelCheckpoint
 import os
@@ -24,7 +24,7 @@ class ClassifyModule(pl.LightningModule):
 
     def __init__(self, class_indexices, word2index, **kwargs) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=['class_indexices', "word2index", "charset_path", "test_models", "test_trail_ids"])
+        self.save_hyperparameters(ignore=['class_indexices', "word2index", "test_models", "test_trail_ids"])
         self.model = create_model(self.hparams, word2index)
 
         self.criterion = nn.CrossEntropyLoss() if self.hparams.num_classes > 1 else nn.BCELoss()
@@ -46,11 +46,11 @@ class ClassifyModule(pl.LightningModule):
         targets = y.detach().cpu().numpy()
         acc, pre, rec, f1 = self._report(preds, targets, self.class_indexices)
 
-        self.log("train_loss", loss)
-        self.log("train_f1", f1)
-        self.log("train_precision", pre)
-        self.log("train_recall", rec)
-        self.log("train_acc", acc)
+        self.log("train_loss", loss, batch_size=len(x))
+        self.log("train_f1", f1, batch_size=len(x))
+        self.log("train_precision", pre, batch_size=len(x))
+        self.log("train_recall", rec, batch_size=len(x))
+        self.log("train_acc", acc, batch_size=len(x))
 
         return {"loss": loss, "f1": f1}
 
@@ -79,11 +79,11 @@ class ClassifyModule(pl.LightningModule):
         acc, pre, rec, f1 = self._report(
             preds, targets, class_indexices=self.class_indexices)
 
-        self.log("val_loss", loss)
-        self.log("val_f1", f1)
-        self.log("val_precision", pre)
-        self.log("val_recall", rec)
-        self.log("val_acc", acc)
+        self.log("val_loss", loss, batch_size=len(x))
+        self.log("val_f1", f1, batch_size=len(x))
+        self.log("val_precision", pre, batch_size=len(x))
+        self.log("val_recall", rec, batch_size=len(x))
+        self.log("val_acc", acc, batch_size=len(x))
 
         return {"loss": loss, "f1": f1}
 
@@ -106,11 +106,11 @@ class ClassifyModule(pl.LightningModule):
         acc, pre, rec, f1 = self._report(
             preds, targets, class_indexices=self.class_indexices)
 
-        self.log("test_loss", loss)
-        self.log("test_f1", f1)
-        self.log("test_precision", pre)
-        self.log("test_recall", rec)
-        self.log("test_acc", acc)
+        self.log("test_loss", loss, batch_size=len(x))
+        self.log("test_f1", f1, batch_size=len(x))
+        self.log("test_precision", pre, batch_size=len(x))
+        self.log("test_recall", rec, batch_size=len(x))
+        self.log("test_acc", acc, batch_size=len(x))
 
         return {"loss": loss, "f1": f1}
 
@@ -231,6 +231,10 @@ test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index,
 dev_dataset = ClassificationDataset(data_rows=dev_data, word2index=word2index, label2index=label2index,
                                      charset_path=args.charset_path, pad_char=' ', 
                                     max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+if args.emb_type == 'CNN':
+    collate_fun = distill_collate_fun
+else:
+    collate_fun = emb_collate_fun
 
 train_dataloader = DataLoader(
     train_dataset,   shuffle=True, collate_fn=collate_fun, num_workers=0, batch_size=args.batch_size, drop_last=True)
@@ -242,18 +246,12 @@ dev_dataloader = DataLoader(
 
 args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
-args.vocab_size = len(vocab)
 
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
     every_n_epochs=1,
     dirpath=f'saves/{args.exp_name}/{args.trial_id}',
     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
-logger = TensorBoardLogger("logs", name=args.exp_name)
-
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
-if args.test_models:
-    trainer.enable_progress_bar = False
 
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
@@ -261,6 +259,25 @@ if args.emb_type != "CNN":
     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab, header=False)
     n_loaded = m.model.init_emb(w2v=word2vec)
     print("Loaded embs in %", n_loaded * 100 / len(vocab))
+
+else:
+    if args.vector_file != "scratch":
+        checkpoint = torch.load(args.vector_file)
+        model_state = checkpoint['state_dict']
+        keys = list(model_state.keys())
+        for key in keys:
+            v = model_state.pop(key)
+            model_state[key[6:]] = v
+        m.model.embedding.load_state_dict(model_state)
+
+
+logger = TensorBoardLogger("logs", name=args.exp_name)
+
+trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
+if args.test_models:
+    trainer.enable_progress_bar = False
+
+
 
 if not args.test_models:
     trainer.fit(model=m,
