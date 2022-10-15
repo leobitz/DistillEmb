@@ -1,4 +1,4 @@
-from numpy import random
+import random
 
 
 def build_charset(charset_file, space_index=-1):
@@ -59,3 +59,13 @@ def sen_idx_to_word_ids(index2word, sen_idx,  pad_char,  max_word_len):
 
 def sen_word_to_word_ids(words, char2int, pad_char,  max_word_len):
     return [word2ids(char2int, word, pad_char,  max_word_len) for word in words]
+
+
+def load_corpus_words(path, line_prob=1.0):
+    words = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            if random.random() < line_prob:
+                words.extend(line.strip().split())
+
+    return words
