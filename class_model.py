@@ -93,9 +93,11 @@ class CharLSTMTextClassifier(nn.Module):
 
     def forward(self, x, mask_idx):
         xs = []
-        for i in range(x.shape[1]):
-            xx = self.embedding(x[:, i])
-            remain_len = x.shape[1] - mask_idx[i]
+
+        max_len = mask_idx.max()
+        for i in range(len(x)):
+            xx = self.embedding(x[i])
+            remain_len = max_len - mask_idx[i]
             if remain_len > 0:
                 xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
             xs.append(xx)

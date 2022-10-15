@@ -120,18 +120,14 @@ class ClassificationDataset(Dataset):
 def distill_collate_fun(batch):
 
     batch_words, batch_labels, batch_mask_idx = [], [], []
-    max_len = 0
-    for (_words, _label, _mask_id) in batch:
-        if max_len < len(_words):
-            max_len = len(_words)
 
     for (_words, _label, _mask_id) in batch:
-        _words = _words + [PAD_TENSOR] * (max_len - len(_words))
-        batch_words.append(_words)
+        # _words = _words + [PAD_TENSOR] * (max_len - len(_words))
+        batch_words.append(torch.LongTensor(_words))
         batch_labels.append(_label)
         batch_mask_idx.append(_mask_id)
 
-    batch_words = torch.LongTensor(batch_words,)
+    # batch_words = torch.LongTensor(batch_words)
     batch_labels = torch.LongTensor(batch_labels)
     batch_mask_idx = torch.LongTensor(batch_mask_idx)
 
