@@ -200,7 +200,7 @@ test_file = f"{args.dataset_folder}/clean-test.csv"
 dev_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
-np.random.shuffle(train_data)
+# np.random.shuffle(train_data)
 new_data_size = int(len(train_data) * args.data_size)
 train_data = train_data[:new_data_size]
 
@@ -246,6 +246,7 @@ dev_dataloader = DataLoader(
 
 args.num_classes = len(class_labels) if len(class_labels) > 2 else 1
 args.train_embedding = True
+args.vocab_size = len(vocab)
 
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
