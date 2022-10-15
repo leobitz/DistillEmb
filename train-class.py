@@ -200,7 +200,7 @@ test_file = f"{args.dataset_folder}/clean-test.csv"
 dev_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
-# np.random.shuffle(train_data)
+np.random.shuffle(train_data)
 new_data_size = int(len(train_data) * args.data_size)
 train_data = train_data[:new_data_size]
 
@@ -218,7 +218,7 @@ if args.vocab_file != None and args.emb_type != "CNN":
     vocab = set(task_tokens)
     if UNK_WORD not in vocab:
         vocab.update(UNK_WORD)
-
+    args.vocab_size = len(vocab)
     word2index = {v: k for k, v in enumerate(task_tokens)}
 
 train_dataset = ClassificationDataset(data_rows=train_data, word2index=word2index, label2index=label2index,
@@ -259,7 +259,7 @@ if args.emb_type != "CNN":
     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab, header=False)
     n_loaded = m.model.init_emb(w2v=word2vec)
     print("Loaded embs in %", n_loaded * 100 / len(vocab))
-    args.vocab_size = len(vocab)
+    
 
 else:
     if args.vector_file != "scratch":
@@ -321,7 +321,7 @@ else:
         test_accs.append([result[0][x] for x in sorted(result[0].keys())])
 
     print("=========================== Test RESULT ==========================")
-    print("max_epoch", max_epoch)
+    print("Max Epoch", max_epoch)
     ave = np.mean(test_accs, axis=0)
     print(sorted(result[0].keys()))
     print(ave)
@@ -329,7 +329,8 @@ else:
     m.eval()
     m.freeze()
     max_test_result = trainer.test(m, dataloaders=test_dataloader)
-    print("max_test_result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("Max Test Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("Max file: ", max_model_name)
     print("=========================== Test END ==============================")
     
     val_accs = []
@@ -337,7 +338,7 @@ else:
         m = ClassifyModule.load_from_checkpoint(name, **vars(args))
         m.eval()
         m.freeze()
-        result = trainer.test(m, dataloaders=test_dataloader)
+        result = trainer.test(m, dataloaders=dev_dataloader)
         val_accs.append([result[0][x] for x in sorted(result[0].keys())])
 
     print("=========================== Validation Result  ====================")
@@ -348,7 +349,26 @@ else:
     m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
     m.eval()
     m.freeze()
-    max_test_result = trainer.test(m, dataloaders=test_dataloader)
-    print("max_test_result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    max_test_result = trainer.test(m, dataloaders=dev_dataloader)
+    print("Max Val Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
     print("=========================== Validation END   ========================")
 
+    train_vocab = set([])
+    for row in train_data:
+        train_vocab.update(row[1].split())
+
+    dev_vocab = set([])
+    for row in dev_data:
+        dev_vocab.update(row[1].split())
+
+    test_vocab = set([])
+    for row in test_data:
+        test_vocab.update(row[1].split())
+
+    tr_ts = train_vocab.intersection(test_vocab)
+    tr_dv = train_vocab.intersection(dev_vocab)
+
+    ts_ratio = len(tr_ts) * 100 / len(test_vocab)
+    dv_ratio = len(tr_dv) * 100 / len(dev_vocab)
+
+    print(f'Test-Train Vocab Ratio: {ts_ratio}, Dev-Train Vocab Ratio: {dv_ratio}')
