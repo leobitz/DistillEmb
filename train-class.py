@@ -259,6 +259,7 @@ if args.emb_type != "CNN":
     word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab, header=False)
     n_loaded = m.model.init_emb(w2v=word2vec)
     print("Loaded embs in %", n_loaded * 100 / len(vocab))
+    args.vocab_size = len(vocab)
 
 else:
     if args.vector_file != "scratch":

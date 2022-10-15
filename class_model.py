@@ -87,34 +87,34 @@ class CharLSTMTextClassifier(nn.Module):
         
         self.emb_dropout = nn.Dropout2d(emb_dropout)
         self.fc_dropout = nn.Dropout(fc_dropout)
-        self.norm0 = nn.LayerNorm(300)
+        self.norm0 = nn.LayerNorm(self.embedding.output_size)
         self.norm1 = nn.LayerNorm(hidden_size*2)
 
 
     def forward(self, x, mask_idx):
         xs = []
         
-        seq_length = mask_idx#.sum(1)
+        # seq_length = mask_idx
 
-
-        for i in range(x.shape[0]):
-            xx = self.embedding(x[i, :mask_idx[i]])
-            remain_len = x.shape[1] - mask_idx[i]
-            xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
+        for i in range(x.shape[1]):
+            xx = self.embedding(x[:, i])
+            # remain_len = x.shape[1] - mask_idx[i]
+            # if remain_len > 0:
+            #     xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
             xs.append(xx)
 
-        x = torch.stack(xs)
-
-        sorted_seq_length, perm_idx = seq_length.sort(descending=True)
-        x = x[perm_idx, :]
+        x = torch.stack(xs, dim=1)
+        # print(x.shape)
+        # sorted_seq_length, perm_idx = seq_length.sort(descending=True)
+        # x = x[perm_idx, :]
         
-        x = self.emb_dropout(x)
-        x = self.norm0(x)
+        # x = self.emb_dropout(x)
+        # x = self.norm0(x)
 
-        packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
-        packed_x, (h, c) = self.lstm(packed_x)
+        # packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
+        x, (h, c) = self.lstm(x)
 
-        x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
+        # x, input_sizes = pad_packed_sequence(x, batch_first=True)
 
         x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
