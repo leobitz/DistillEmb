@@ -36,7 +36,7 @@ class DistillModule(pl.LightningModule):
         loss = self.triplet_loss(z, pos_w2v, neg_w2v)
         # floss = self.triplet_loss(z, pos_ft, neg_ft)
         # loss = (floss + wloss) / 2
-        self.log("val_loss", loss)
+        self.log("train_loss", loss)
         # self.log("val_ft_loss", floss)
         # self.log("val_w2v_loss", wloss)
 
@@ -115,10 +115,11 @@ word2vec_emb_path = args.word2vec_path
 train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
-w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-
-vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
+# ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
+# w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
+w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
+vocab = set(w2v_emb.keys())
+# vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
     vocab.remove('</s>')
 print("Finished loading vectors")
@@ -140,11 +141,11 @@ vocab2index = {v: k for k, v in enumerate(train_vocab)}
 index2vocab = {k: v for k, v in enumerate(train_vocab)}
 
 train_dataset = DistillDataset(words=words, vocab=train_vocab,
-                               vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+                               vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=vocab,
                                charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
-                              w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+                              w2v_vectors=w2v_emb, ft_vectors=vocab,
                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 
