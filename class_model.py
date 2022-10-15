@@ -93,27 +93,22 @@ class CharLSTMTextClassifier(nn.Module):
 
     def forward(self, x, mask_idx):
         xs = []
-        
-        # seq_length = mask_idx
-
         for i in range(x.shape[1]):
             xx = self.embedding(x[:, i])
-            # remain_len = x.shape[1] - mask_idx[i]
-            # if remain_len > 0:
-            #     xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
+            remain_len = x.shape[1] - mask_idx[i]
+            if remain_len > 0:
+                xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
             xs.append(xx)
 
         x = torch.stack(xs, dim=1)
-        # print(x.shape)
-        # sorted_seq_length, perm_idx = seq_length.sort(descending=True)
-        # x = x[perm_idx, :]
+        sorted_seq_length, perm_idx = mask_idx.sort(descending=True)
+        x = x[perm_idx, :]
         
-        # x = self.emb_dropout(x)
-        # x = self.norm0(x)
+        x = self.emb_dropout(x)
+        x = self.norm0(x)
 
-        # packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
+        packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
         x, (h, c) = self.lstm(x)
-
         # x, input_sizes = pad_packed_sequence(x, batch_first=True)
 
         x = torch.cat((h[0], h[1]), dim=1)
