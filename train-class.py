@@ -270,6 +270,7 @@ else:
             v = model_state.pop(key)
             model_state[key[6:]] = v
         m.model.embedding.load_state_dict(model_state)
+        print("Loaded: ", args.vector_file)
 
 
 logger = TensorBoardLogger("logs", name=args.exp_name)

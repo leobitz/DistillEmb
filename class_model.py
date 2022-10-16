@@ -96,22 +96,20 @@ class CharLSTMTextClassifier(nn.Module):
 
         max_len = mask_idx.max()
         for i in range(len(x)):
-            xx = self.embedding(x[i])
+            xx = self.embedding(x[i]).unsqueeze(0)
+            xx = self.emb_dropout(xx)
+            xx = self.norm0(xx).squeeze(0)
+
             remain_len = max_len - mask_idx[i]
             if remain_len > 0:
                 xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
+            
             xs.append(xx)
 
-        x = torch.stack(xs, dim=1)
-        sorted_seq_length, perm_idx = mask_idx.sort(descending=True)
-        x = x[perm_idx, :]
-        
-        x = self.emb_dropout(x)
-        x = self.norm0(x)
+        x = torch.stack(xs, dim=0)
 
-        packed_x = pack_padded_sequence(x, lengths=sorted_seq_length.cpu(), batch_first=True)
-        x, (h, c) = self.lstm(x)
-        # x, input_sizes = pad_packed_sequence(x, batch_first=True)
+        packed_x = pack_padded_sequence(x, mask_idx.cpu().numpy(), batch_first=True, enforce_sorted=False)
+        packed_x, (h, c) = self.lstm(packed_x)
 
         x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
