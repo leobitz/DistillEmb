@@ -200,7 +200,7 @@ test_file = f"{args.dataset_folder}/clean-test.csv"
 dev_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
-np.random.shuffle(train_data)
+# np.random.shuffle(train_data)
 new_data_size = int(len(train_data) * args.data_size)
 train_data = train_data[:new_data_size]
 
@@ -215,11 +215,23 @@ word2index = None
 label2index = {v: k for k, v in enumerate(class_labels)}
 if args.vocab_file != None and args.emb_type != "CNN":
     task_tokens = open(args.vocab_file, encoding='utf-8').read().split()
-    vocab = set(task_tokens)
-    if UNK_WORD not in vocab:
-        vocab.update(UNK_WORD)
-    args.vocab_size = len(vocab)
-    word2index = {v: k for k, v in enumerate(task_tokens)}
+    vocab = sorted(set(task_tokens))
+
+    task_tokens = []
+    for line in train_data[:, 1].flatten():
+        tokens = line.split(" ")
+        task_tokens.extend(tokens)
+
+    current_vocab = set(task_tokens)
+    if UNK_WORD in current_vocab:
+        current_vocab.remove(UNK_WORD)
+
+    vocab = [x for x in vocab if x in current_vocab]
+
+    vocab.insert(0, UNK_WORD)
+
+    word2index = {v: k for k, v in enumerate(vocab)}
+    args.vocab_size = len(word2index)
 
 train_dataset = ClassificationDataset(data_rows=train_data, word2index=word2index, label2index=label2index,
                                       charset_path=args.charset_path, pad_char=' ', 
@@ -256,9 +268,9 @@ checkpoint_cb = ModelCheckpoint(
 m = ClassifyModule(list(label2index.values()), word2index, **vars(args))
 
 if args.emb_type != "CNN":
-    word2vec = lib.load_word_embeddings(args.vector_file, target_words=vocab, header=False)
+    word2vec = lib.load_word_embeddings(args.vector_file, target_words=word2index, header=False)
     n_loaded = m.model.init_emb(w2v=word2vec)
-    print("Loaded embs in %", n_loaded * 100 / len(vocab))
+    print("Loaded embs in %", n_loaded * 100 / len(word2index))
     
 
 else:
