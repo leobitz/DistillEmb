@@ -200,7 +200,7 @@ test_file = f"{args.dataset_folder}/clean-test.csv"
 dev_file = f"{args.dataset_folder}/clean-dev.csv"
 
 train_data = pd.read_csv(train_file).to_numpy()
-np.random.shuffle(train_data)
+# np.random.shuffle(train_data)
 new_data_size = int(len(train_data) * args.data_size)
 train_data = train_data[:new_data_size]
 
@@ -216,8 +216,17 @@ label2index = {v: k for k, v in enumerate(class_labels)}
 if args.vocab_file != None and args.emb_type != "CNN":
     task_tokens = open(args.vocab_file, encoding='utf-8').read().split()
     vocab = set(task_tokens)
+
+    task_tokens = []
+    for line in train_data[:, 1].flatten():
+        tokens = line.split(" ")
+        task_tokens.extend(tokens)
+
+    current_vocab = set(task_tokens)
+    vocab = set([x for x in vocab if x in current_vocab])
     if UNK_WORD not in vocab:
         vocab.update(UNK_WORD)
+
     args.vocab_size = len(vocab)
     word2index = {v: k for k, v in enumerate(task_tokens)}
 
