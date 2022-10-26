@@ -32,7 +32,7 @@ class DistillDataset(Dataset):
         
         target_word = self.vocab[idx]
         target_vec = self.wvectors[target_word] # word2vec embedding
-        # target_vec = np.concatenate([target_vec, self.fvectors[target_word]]) # concat with fasttext embedding
+        target_vec = np.concatenate([target_vec, self.fvectors[target_word]]) # concat with fasttext embedding
 
         neg_word = target_word
         while target_word == neg_word:
@@ -44,8 +44,8 @@ class DistillDataset(Dataset):
             neg_words = list(neg_words)
 
             vecs = np.stack([self.wvectors[wrd] for wrd in neg_words]) # collect w2v embedding of negatives
-            # fvecs = np.stack([self.fvectors[wrd] for wrd in neg_words]) # collect fasttext embedding of negatives
-            # vecs = np.concatenate([vecs, fvecs], axis=1) # concat them
+            fvecs = np.stack([self.fvectors[wrd] for wrd in neg_words]) # collect fasttext embedding of negatives
+            vecs = np.concatenate([vecs, fvecs], axis=1) # concat them
 
             xsims = np.linalg.norm(vecs - target_vec, axis=1) # L2 norm (similarity)
 

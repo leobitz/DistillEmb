@@ -73,6 +73,8 @@ class CharLSTMTextClassifier(nn.Module):
         super(CharLSTMTextClassifier, self).__init__()
         
         self.input_size = input_size
+        self.num_layers = num_rnn_layers
+        self.hidden_size = hidden_size
         if num_rnn_layers == 1:
             self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True, batch_first=True)
         else:
@@ -85,7 +87,7 @@ class CharLSTMTextClassifier(nn.Module):
         self.embedding.requires_grad_(train_embeder)
         
         
-        self.emb_dropout = nn.Dropout2d(emb_dropout)
+        self.emb_dropout = nn.Dropout(emb_dropout)
         self.fc_dropout = nn.Dropout(fc_dropout)
         self.norm0 = nn.LayerNorm(self.embedding.output_size)
         self.norm1 = nn.LayerNorm(hidden_size*2)
@@ -110,9 +112,14 @@ class CharLSTMTextClassifier(nn.Module):
 
         x = torch.stack(xs, dim=0)
 
+        # h = torch.zeros((self.num_layers*2, x.shape[0], self.hidden_size), device=x.device)
+        # c = torch.zeros((self.num_layers*2, x.shape[0], self.hidden_size), device=x.device)
+        # print(h.shape)
         packed_x = pack_padded_sequence(x, mask_idx.cpu().numpy(), batch_first=True, enforce_sorted=False)
         packed_x, (h, c) = self.lstm(packed_x)
+        # x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
 
+        # x = x[:, -1, :]
         x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
         x = self.norm1(x)

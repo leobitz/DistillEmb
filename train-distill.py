@@ -33,40 +33,44 @@ class DistillModule(pl.LightningModule):
         x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
         z = self.model(x)
 
-        loss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        # floss = self.triplet_loss(z, pos_ft, neg_ft)
-        # loss = (floss + wloss) / 2
-        self.log("train_loss", loss)
+        wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
+        floss = wloss#self.triplet_loss(z, pos_ft, neg_ft)
+        loss = wloss#(floss + wloss) / 2
+        # self.log("train_loss", loss)
         # self.log("val_ft_loss", floss)
         # self.log("val_w2v_loss", wloss)
 
         # wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
         # floss = self.triplet_loss(z, pos_ft, neg_ft)
         # loss = (floss + wloss) / 2
-        # self.log("train_loss", loss)
-        # self.log("train_ft_loss", floss)
-        # self.log("train_w2v_loss", wloss)
-        return loss
+        self.log("train_loss", loss)
+        self.log("train_ft_loss", floss)
+        self.log("train_w2v_loss", wloss)
+        return {"loss": loss, "loss-w2v": wloss, "loss-ft": floss}
 
     def training_epoch_end(self, outputs) -> None:
         loss = sum(output['loss'] for output in outputs) / len(outputs)
+        wloss = sum(output['loss-w2v'] for output in outputs) / len(outputs)
+        floss = sum(output['loss-ft'] for output in outputs) / len(outputs)
         self.log("epoch_train_loss", loss)
+        self.log("epoch_train_loss_ft", floss)
+        self.log("epoch_train_loss_w2v", wloss)
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 1, gamma=self.hparams.step_gamma)
         return [self.optimizer], [self.scheduler]
 
-    def validation_step(self, batch, batch_idx):
-        x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
-        z = self.model(x)
+    # def validation_step(self, batch, batch_idx):
+    #     x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
+    #     z = self.model(x)
 
-        loss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        # floss = self.triplet_loss(z, pos_ft, neg_ft)
-        # loss = (floss + wloss) / 2
-        self.log("val_loss", loss)
-        # self.log("val_ft_loss", floss)
-        # self.log("val_w2v_loss", wloss)
+    #     wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
+    #     floss = self.triplet_loss(z, pos_ft, neg_ft)
+    #     loss = (floss + wloss) / 2
+    #     self.log("val_loss", loss)
+    #     self.log("val_ft_loss", floss)
+    #     self.log("val_w2v_loss", wloss)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -115,11 +119,11 @@ word2vec_emb_path = args.word2vec_path
 train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
-# ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
-# w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
-vocab = set(w2v_emb.keys())
-# vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
+w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
+# w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
+# vocab = set(w2v_emb.keys())
+vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
     vocab.remove('</s>')
 print("Finished loading vectors")
@@ -141,18 +145,18 @@ vocab2index = {v: k for k, v in enumerate(train_vocab)}
 index2vocab = {k: v for k, v in enumerate(train_vocab)}
 
 train_dataset = DistillDataset(words=words, vocab=train_vocab,
-                               vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=vocab,
+                               vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
                                charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
-test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
-                              w2v_vectors=w2v_emb, ft_vectors=vocab,
-                              charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
+# test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
+#                               w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+#                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 
 train_dataloader = DataLoader(
     train_dataset, shuffle=True,  batch_size=batch_size)
-test_dataloader = DataLoader(
-    test_dataset, batch_size=batch_size)
+# test_dataloader = DataLoader(
+#     test_dataset, batch_size=batch_size)
 
 trainer.fit(model=DistillModule(**vars(args)),
-            train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
+            train_dataloaders=train_dataloader)
