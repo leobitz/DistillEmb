@@ -97,7 +97,9 @@ class CharLSTMTextClassifier(nn.Module):
         max_len = mask_idx.max()
         for i in range(len(x)):
             xx = self.embedding(x[i]).unsqueeze(0)
+            xx = torch.relu(xx)
             xx = self.emb_dropout(xx)
+            
             xx = self.norm0(xx).squeeze(0)
 
             remain_len = max_len - mask_idx[i]
