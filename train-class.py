@@ -175,6 +175,7 @@ parser.add_argument('--no-train-model', action='store_false',
 parser.add_argument('--test-trial-ids', type=str,
                     help='trial ids to test separated by -')
 
+parser.add_argument("--grad-accumulate", type=int, default=1)
 parser.add_argument('--data-size', type=float,
                             default=1.0, help='downstream data size in %')
 parser.add_argument('--vocab-file', type=str,
