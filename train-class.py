@@ -286,25 +286,25 @@ else:
         print("Loaded: ", args.vector_file)
 
 
-logger = TensorBoardLogger("logs", name=args.exp_name)
 
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
-if args.test_models:
-    trainer.enable_progress_bar = False
-
-
-
+print("Test mode:", args.test_models)
 if not args.test_models:
+    logger = TensorBoardLogger("logs", name=args.exp_name)
+
+    trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=[checkpoint_cb])
+
     trainer.fit(model=m,
                 train_dataloaders=train_dataloader,
                 val_dataloaders=dev_dataloader)
 
 else:
+    trainer = pl.Trainer.from_argparse_args(args)
+
     ids = args.test_trial_ids.split("-")
     trail_accs = []
     max_model_name = None
     max_val_acc = 0
-
+    max_val_index = 0
     for idx in ids:
         folder_name = f'saves/{args.exp_name}/{idx}'
         names = sorted(os.listdir(folder_name), key=lambda x: int(x.split('-')[0].split('=')[1]))
@@ -312,6 +312,7 @@ else:
         max_index = np.argmax(accs)
         if accs[max_index] > max_val_acc:
             max_val_acc = accs[max_index]
+            max_val_index = max_index
             max_model_name = f"{folder_name}/{names[max_index]}"
         trail_accs.append(accs)
     trail_accs = np.array(trail_accs)
@@ -334,39 +335,6 @@ else:
         result = trainer.test(m, dataloaders=test_dataloader)
         test_accs.append([result[0][x] for x in sorted(result[0].keys())])
 
-    print("=========================== Test RESULT ==========================")
-    print("Max Epoch", max_epoch)
-    ave = np.mean(test_accs, axis=0)
-    print(sorted(result[0].keys()))
-    print(ave)
-    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
-    m.eval()
-    m.freeze()
-    max_test_result = trainer.test(m, dataloaders=test_dataloader)
-    print("Max Test Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
-    print("Max file: ", max_model_name)
-    print("=========================== Test END ==============================")
-    
-    val_accs = []
-    for name in final_names:
-        m = ClassifyModule.load_from_checkpoint(name, **vars(args))
-        m.eval()
-        m.freeze()
-        result = trainer.test(m, dataloaders=dev_dataloader)
-        val_accs.append([result[0][x] for x in sorted(result[0].keys())])
-
-    print("=========================== Validation Result  ====================")
-    ave = np.mean(val_accs, axis=0)
-    print(sorted(result[0].keys()))
-    print(ave)
-    print(max_model_name)
-    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
-    m.eval()
-    m.freeze()
-    max_test_result = trainer.test(m, dataloaders=dev_dataloader)
-    print("Max Val Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
-    print("=========================== Validation END   ========================")
-
     train_vocab = set([])
     for row in train_data:
         train_vocab.update(row[1].split())
@@ -385,4 +353,57 @@ else:
     ts_ratio = len(tr_ts) * 100 / len(test_vocab)
     dv_ratio = len(tr_dv) * 100 / len(dev_vocab)
 
-    print(f'Test-Train Vocab Ratio: {ts_ratio}, Dev-Train Vocab Ratio: {dv_ratio}')
+    print("=========================== Test RESULT ==========================")
+    print("Max Epoch", max_epoch)
+    header = "exp-name,test,test_acc,test_f1,test_loss,test_precision,test_recall,Epoch,Test-Train,Dev-Train"
+    ave = np.mean(test_accs, axis=0)
+    std = np.std(test_accs, axis=0)
+    test_line = [args.exp_name, "test" ] + list(ave) + [max_epoch, ts_ratio, dv_ratio] + [-1] + list(std)
+    print(sorted(result[0].keys()))
+    print(ave)
+    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
+    m.eval()
+    m.freeze()
+    max_test_result = trainer.test(m, dataloaders=test_dataloader)
+    max_test_line = [args.exp_name, "max-test" ] + [max_test_result[0][x] for x in sorted(max_test_result[0].keys())] + [max_val_index, ts_ratio, dv_ratio] + [-1] + list(std)
+    print("Max Test Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("Max file: ", max_model_name)
+    print("=========================== Test END ==============================")
+    
+    val_accs = []
+    for name in final_names:
+        m = ClassifyModule.load_from_checkpoint(name, **vars(args))
+        m.eval()
+        m.freeze()
+        result = trainer.test(m, dataloaders=dev_dataloader)
+        val_accs.append([result[0][x] for x in sorted(result[0].keys())])
+
+    print("=========================== Validation Result  ====================")
+    ave = np.mean(val_accs, axis=0)
+    std = np.std(val_accs, axis=0)
+    print(sorted(result[0].keys()))
+    val_line = [args.exp_name, "val" ] + list(ave) + [max_epoch, ts_ratio, dv_ratio] + [-1] + list(std)
+    print(ave)
+    print(max_model_name)
+    m = ClassifyModule.load_from_checkpoint(max_model_name, **vars(args))
+    m.eval()
+    m.freeze()
+    max_test_result = trainer.test(m, dataloaders=dev_dataloader)
+    max_val_line = [args.exp_name, "max-val" ] + [max_test_result[0][x] for x in sorted(max_test_result[0].keys())] + [max_val_index, ts_ratio, dv_ratio] + [-1] + list(std)
+    print("Max Val Result", [max_test_result[0][x] for x in sorted(max_test_result[0].keys())])
+    print("=========================== Validation END   ========================")
+
+    all_text = ""
+    lines = [test_line, max_test_line, val_line, max_val_line]
+    for line in lines:
+        line = ",".join([str(x) for x in line])
+        line = line  + "\n"
+        all_text += line
+    
+    dsize = args.exp_name.split("-")[-1]
+    index = args.exp_name.index(dsize)
+    exp_name  = args.exp_name[:index-1]
+
+    with open("saves/"+exp_name, mode='a', encoding='utf-8') as f:
+        f.write(all_text)
+    # print(f'Test-Train Vocab Ratio: {ts_ratio}, Dev-Train Vocab Ratio: {dv_ratio}')
