@@ -1,6 +1,7 @@
 import random
 from argparse import ArgumentParser
 
+import os
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -119,19 +120,11 @@ word2vec_emb_path = args.word2vec_path
 train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
-import os
-if not (os.path.exists(fasttext_emb_path) and os.path.exists(word2vec_emb_path) and os.path.exists(train_corpus_path)):
-    print("File doesn't exist")
-    
-else:
-    print("ready")
 
 ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
 print("FT loaded")
 w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-print("W2V loaded")
-# w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
-# vocab = set(w2v_emb.keys())
+print("w2v loaded")
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
     vocab.remove('</s>')
@@ -157,15 +150,8 @@ train_dataset = DistillDataset(words=words, vocab=train_vocab,
                                vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
                                charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
-# test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
-#                               w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-#                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
-
-
 train_dataloader = DataLoader(
     train_dataset, shuffle=True,  batch_size=batch_size)
-# test_dataloader = DataLoader(
-#     test_dataset, batch_size=batch_size)
 
 trainer.fit(model=DistillModule(**vars(args)),
             train_dataloaders=train_dataloader)

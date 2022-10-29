@@ -1,1 +1,0 @@
-python seq-train.py  --emb_type word --charset_path data/am-charset.txt  --data_folder ./dataset/ner --max_seq_len 200 --batch_size 64 --learning_rate 0.001 --embedding_dim 300 --hidden_dim 512 --num_rnn_layers 2 --rnn_type LSTM --fc_dropout 0.3 --rnn_dropout 0.3 --emb_dropout 0.3 

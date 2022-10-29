@@ -60,18 +60,18 @@ class Preprocessor:
     def _load_dataset(self, corpus_dir, max_seq_len, dataset_file, max_word_len, pad_char, charset_path):
         ds_path = self.__cache_file_path(corpus_dir, max_seq_len, dataset_file)
         if not exists(ds_path):
-            xs, cs, ys = self.__build_corpus(corpus_dir=corpus_dir, max_seq_len=max_seq_len, charset_path=charset_path, 
+            xs, cs, ys, ms = self.__build_corpus(corpus_dir=corpus_dir, max_seq_len=max_seq_len, charset_path=charset_path, 
                                         max_word_len=max_word_len, pad_char=pad_char, dataset_file=dataset_file)
         else:
             print("loading dataset {} ...".format(ds_path))
             dataset = np.load(ds_path)
-            xs, cs, ys = dataset["xs"], dataset["cs"], dataset["ys"]
+            xs, cs, ys, ms = dataset["xs"], dataset["cs"], dataset["ys"], dataset["ms"]
 
-        xs, cs, ys = map(
-            torch.tensor, (xs, cs, ys)
+        xs, cs, ys, ms = map(
+            torch.tensor, (xs, cs, ys, ms)
         )
 
-        return xs, cs, ys
+        return xs, cs, ys, ms
 
     def load_dataset(self, corpus_dir, max_seq_len, max_word_len, pad_char, charset_path):
         """load the train set
@@ -80,11 +80,11 @@ class Preprocessor:
             xs: [B, L]
             ys: [B, L, C]
         """
-        train_xs, train_cs, train_ys = self._load_dataset(corpus_dir, max_seq_len, f'train.txt', max_word_len, pad_char, charset_path)
-        val_xs, val_cs, val_ys = self._load_dataset(corpus_dir, max_seq_len, f'dev.txt', max_word_len, pad_char, charset_path)
-        test_xs, test_cs, test_ys = self._load_dataset(corpus_dir, max_seq_len, f'test.txt', max_word_len, pad_char, charset_path)
+        train_xs, train_cs, train_ys, train_ms = self._load_dataset(corpus_dir, max_seq_len, f'train.txt', max_word_len, pad_char, charset_path)
+        val_xs, val_cs, val_ys, val_ms = self._load_dataset(corpus_dir, max_seq_len, f'dev.txt', max_word_len, pad_char, charset_path)
+        test_xs, test_cs, test_ys, test_ms = self._load_dataset(corpus_dir, max_seq_len, f'test.txt', max_word_len, pad_char, charset_path)
 
-        return (train_xs, train_cs, train_ys), (val_xs,val_cs, val_ys), (test_xs, test_cs, test_ys)
+        return (train_xs, train_cs, train_ys, train_ms), (val_xs,val_cs, val_ys, val_ms), (test_xs, test_cs, test_ys, test_ms)
 
     def decode_tags(self, batch_tags):
         batch_tags = [
@@ -109,7 +109,7 @@ class Preprocessor:
         pad_word = [char2int[pad_char]] * max_word_len
         file_path = join(corpus_dir, dataset_file)
 
-        xs, ys, cs = [], [], []
+        xs, ys, cs, ms = [], [], [], []
         with open(file_path, encoding="utf-8") as f:
             for idx, line in tqdm(enumerate(f), desc="parsing {}".format(file_path)):
                 fields = line.strip().split("\t")
@@ -123,6 +123,7 @@ class Preprocessor:
                         sentence = json.loads(sentence)
                     tags = json.loads(tags)
                     sen = sentence[:max_seq_len] if len(sentence) > max_seq_len else sentence
+                    ms.append(len(sen))
                     char_sen = lib.sen_word_to_word_ids(sen, char2int, pad_char=pad_char, max_word_len=max_word_len)
                     char_sen = char_sen + [pad_word] * (max_seq_len - len(char_sen))
                     cs.append(np.array(char_sen))
@@ -135,9 +136,10 @@ class Preprocessor:
                     raise ValueError("exception raised when parsing line {}\n\t{}\n\t{}".format(idx + 1, line, e))
 
         xs, ys = np.asarray(xs), np.asarray(ys)
+        ms = np.asarray(ms, dtype=np.int64)
         cs = np.stack(cs)
 
         # save train set
         cache_file = self.__cache_file_path(corpus_dir, max_seq_len, dataset_file)
-        np.savez(cache_file, xs=xs, ys=ys, cs=cs)
-        return xs, cs, ys
+        np.savez(cache_file, xs=xs, ys=ys, cs=cs, ms=ms)
+        return xs, cs, ys, ms

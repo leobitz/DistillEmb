@@ -66,11 +66,11 @@ class LSTMTextClassifier(nn.Module):
             self.embeder.load_state_dict(checkpoint['model_state_dict'])
 
 
-class CharLSTMTextClassifier(nn.Module):
+class DistillLSTMTextClassifier(nn.Module):
 
     def __init__(self, input_size, hidden_size, n_outputs, charset_path, train_embeder=True,
              fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
-        super(CharLSTMTextClassifier, self).__init__()
+        super(DistillLSTMTextClassifier, self).__init__()
         
         self.input_size = input_size
         self.num_layers = num_rnn_layers
@@ -112,14 +112,10 @@ class CharLSTMTextClassifier(nn.Module):
 
         x = torch.stack(xs, dim=0)
 
-        # h = torch.zeros((self.num_layers*2, x.shape[0], self.hidden_size), device=x.device)
-        # c = torch.zeros((self.num_layers*2, x.shape[0], self.hidden_size), device=x.device)
-        # print(h.shape)
         packed_x = pack_padded_sequence(x, mask_idx.cpu().numpy(), batch_first=True, enforce_sorted=False)
         packed_x, (h, c) = self.lstm(packed_x)
         # x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
 
-        # x = x[:, -1, :]
         x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
         x = self.norm1(x)
@@ -140,18 +136,18 @@ def create_model(hparams, word2index):
                         hidden_size=hparams.hidden_dim,
                         n_outputs=hparams.num_classes,
                         word2index=word2index,
-                        train_embeder=hparams.train_embedding,
+                        train_embeder=True,
                         fc_dropout=hparams.fc_dropout,
                         rnn_dropout=hparams.rnn_dropout,
                         emb_dropout=hparams.emb_dropout,
                         num_rnn_layers=hparams.num_rnn_layers)
     else:
-        model = CharLSTMTextClassifier(
+        model = DistillLSTMTextClassifier(
                         input_size=hparams.embedding_dim,
                         hidden_size=hparams.hidden_dim,
                         n_outputs=hparams.num_classes,
                         charset_path=hparams.charset_path,
-                        train_embeder=hparams.train_embedding,
+                        train_embeder=True,
                         fc_dropout=hparams.fc_dropout,
                         rnn_dropout=hparams.rnn_dropout,
                         emb_dropout=hparams.emb_dropout,

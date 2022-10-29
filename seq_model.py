@@ -6,79 +6,137 @@ from torch.autograd import Variable
 from utils import *
 from utils import PAD_TAG, START_TAG, STOP_TAG
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence, pad_sequence
+from distill_emb_model import DistillEmb, create_am_distill_emb
 
 IMPOSSIBLE = -1e4
 
 
 class BiLSTMCRF(nn.Module):
-    def __init__(self, vocab_size, tagset_size, embedding_dim, hidden_dim, embeder=None, num_rnn_layers=1, rnn="lstm",
-             rnn_dropout=0.5, fc_dropout=0.5, emb_dropout=0.1, device='cuda'):
+    def __init__(self, vocab_size,  tagset_size, input_size, hidden_size, 
+                word2index, num_rnn_layers=1, rnn="lstm",
+                 rnn_dropout=0.5, fc_dropout=0.5, emb_dropout=0.1):
         super(BiLSTMCRF, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.hidden_dim = hidden_dim
-        self.vocab_size = vocab_size
+
+        self.word2index = word2index
+        self.input_size = input_size
         self.tagset_size = tagset_size
-        self.device= device
 
-        if embeder != None:
-            self.embedding = embeder
-            self.__build_features = self.__build_cnn_features
+        self.embedding = nn.Embedding(vocab_size, input_size)
+
+        RNN = nn.LSTM if rnn == "LSTM" else nn.GRU
+        if num_rnn_layers == 1:
+            self.lstm = RNN(input_size, hidden_size, bidirectional=True, batch_first=True)
         else:
-            self.embedding = nn.Embedding(vocab_size, embedding_dim)
-            self.__build_features = self.__build_word_emb_feat
-        RNN = nn.LSTM if rnn == "lstm" else nn.GRU
-        self.rnn = RNN(embedding_dim, hidden_dim // 2, num_layers=num_rnn_layers, dropout=rnn_dropout,
-                       bidirectional=True, batch_first=True)
-        self.crf = CRF(hidden_dim , self.tagset_size)
-        self.emb_dropout = nn.Dropout(emb_dropout)
+            self.lstm = RNN(input_size, hidden_size, bidirectional=True, batch_first=True,
+                 num_layers=num_rnn_layers, dropout=rnn_dropout)
+
+        # self.fc1 = nn.Linear(hidden_size*2, hidden_size)
+
+        self.emb_dropout = nn.Dropout2d(emb_dropout)
         self.fc_dropout = nn.Dropout(fc_dropout)
+        self.norm0 = nn.LayerNorm(300)
+        self.norm1 = nn.LayerNorm(hidden_size*2)
 
-    def __build_cnn_features(self, sentences, cs):
-        xs = []
-        masks = sentences.gt(0)
-        seq_length = masks.sum(1)
-        x = cs
-        pad_emb = self.embedding(torch.ones((1, 13), dtype=torch.long, device=self.device)  * 378).view(-1)
-        for i in range(x.shape[0]):
-            xx = self.embedding(x[i, :seq_length[i]].long())
-            remain_len = x.shape[1] - seq_length[i]
-            remain = pad_emb.repeat(remain_len, 1)
-            print(remain.shape, xx.shape)
-            xx = torch.cat([xx, remain], dim=0)
-            
-            xs.append(xx)
+        self.crf = CRF(hidden_size*2, self.tagset_size)
 
-        embeds = torch.stack(xs)
-        sorted_seq_length, perm_idx = seq_length.sort(descending=True)
-        embeds = embeds[perm_idx, :]
-        
-        pack_sequence = pack_padded_sequence(embeds, lengths=sorted_seq_length.cpu(), batch_first=True)
-        packed_output, _ = self.rnn(pack_sequence)
-        lstm_out, _ = pad_packed_sequence(packed_output, batch_first=True)
-        _, unperm_idx = perm_idx.sort()
-        x = lstm_out[unperm_idx, :]
+
+    def __build_features(self, x, char_x):
+        masks = x.gt(0)
+        mask_idx = masks.sum(1)
+
+        x = self.embedding(x)
+
+        x = self.emb_dropout(x)
+        x = self.norm0(x)
+        packed_x = pack_padded_sequence(x, mask_idx.cpu().numpy(), batch_first=True, enforce_sorted=False)
+        packed_x, (h, c) = self.lstm(packed_x)
+
+        x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
+
+        # x = torch.cat((h[0], h[1]), dim=1)
         x = self.fc_dropout(x)
-        
+        x = self.norm1(x)
+
         return x, masks
 
-    def __build_word_emb_feat(self, sentences, cs):
-        masks = sentences.gt(0)
-        embeds = self.embedding(sentences.long())
-        
-        seq_length = masks.sum(1)
-        
-        sorted_seq_length, perm_idx = seq_length.sort(descending=True)
-        
-        embeds = embeds[perm_idx, :]
-        embeds = self.emb_dropout(embeds)
-        
-        pack_sequence = pack_padded_sequence(embeds, lengths=sorted_seq_length.cpu(), batch_first=True)
-        packed_output, _ = self.rnn(pack_sequence)
-        lstm_out, _ = pad_packed_sequence(packed_output, batch_first=True)
-        _, unperm_idx = perm_idx.sort()
-        x = lstm_out[unperm_idx, :]
+    def loss(self, xs, mask_idx, tags):
+        features, masks = self.__build_features(xs, mask_idx)
+        loss = self.crf.loss(features, tags, masks=masks)
+        return loss
+
+    def forward(self, xs, mask_idx):
+        # Get the emission scores from the BiLSTM
+        features, masks = self.__build_features(xs, mask_idx)
+        scores, tag_seq = self.crf(features, masks)
+        return scores, tag_seq
+
+    def init_emb(self, fn=None, w2v=None):
+        if fn != None:
+            self.apply(fn)
+        k = 0
+        if w2v != None:
+            vecs = np.random.uniform(-np.sqrt(0.06), np.sqrt(0.06), (len(self.word2index), self.input_size))
+            for ik, (kw, vw) in enumerate(self.word2index.items()):
+                if kw in w2v:
+                    vecs[vw] = np.array(w2v[kw])
+                    k += 1
+            self.embedding.weight.data.copy_(torch.from_numpy(vecs))
+        return k
+
+
+class DistillBiLSTMCRF(nn.Module):
+    def __init__(self,  tagset_size, input_size, hidden_size, charset_path,
+                 num_rnn_layers=1, rnn="lstm",
+                 rnn_dropout=0.5, fc_dropout=0.5, emb_dropout=0.1):
+        super(DistillBiLSTMCRF, self).__init__()
+
+        self.input_size = input_size
+        self.tagset_size = tagset_size
+
+        RNN = nn.LSTM if rnn == "LSTM" else nn.GRU
+        if num_rnn_layers == 1:
+            self.lstm = RNN(input_size, hidden_size, bidirectional=True, batch_first=True)
+        else:
+            self.lstm = RNN(input_size, hidden_size, bidirectional=True, batch_first=True,
+                 num_layers=num_rnn_layers, dropout=rnn_dropout)
+
+        self.embedding = create_am_distill_emb(charset_path, emb_dropout)
+        # self.fc1 = nn.Linear(hidden_size*2, hidden_size)
+
+        self.emb_dropout = nn.Dropout2d(emb_dropout)
+        self.fc_dropout = nn.Dropout(fc_dropout)
+        self.norm0 = nn.LayerNorm(300)
+        self.norm1 = nn.LayerNorm(hidden_size*2)
+
+        self.crf = CRF(hidden_size*2, self.tagset_size)
+
+    def __build_features(self, emb_x, x):
+        xs = []
+        masks = emb_x.gt(0)
+        mask_idx = masks.sum(1)
+        max_len = max(mask_idx)
+        for i in range(len(x)):
+            xx = self.embedding(x[i, :mask_idx[i]]).unsqueeze(0)
+            xx = torch.relu(xx)
+            xx = self.emb_dropout(xx)
+            
+            xx = self.norm0(xx).squeeze(0)
+
+            remain_len = max_len - mask_idx[i]
+            if remain_len > 0:
+                xx = torch.cat([xx, torch.zeros((remain_len, self.embedding.output_size), device=xx.device, dtype=xx.dtype)])
+            # print(x.shape, xx.shape)
+            xs.append(xx)
+
+        x = torch.stack(xs, dim=0)
+
+        packed_x = pack_padded_sequence(x, mask_idx.cpu().numpy(), batch_first=True, enforce_sorted=False)
+        packed_x, (h, c) = self.lstm(packed_x)
+        x, input_sizes = pad_packed_sequence(packed_x, batch_first=True)
+
         x = self.fc_dropout(x)
-        
+        x = self.norm1(x)
+
         return x, masks
 
     def loss(self, xs, cs, tags):
@@ -100,8 +158,6 @@ def log_sum_exp(x):
     return max_score + (x - max_score.unsqueeze(-1)).exp().sum(-1).log()
 
 
-
-
 class CRF(nn.Module):
     """General CRF module.
     The CRF module contain a inner Linear Layer which transform the input from features space to tag space.
@@ -120,7 +176,8 @@ class CRF(nn.Module):
         self.fc = nn.Linear(in_features, self.num_tags)
 
         # transition factor, Tij mean transition from j to i
-        self.transitions = nn.Parameter(torch.randn(self.num_tags, self.num_tags), requires_grad=True)
+        self.transitions = nn.Parameter(torch.randn(
+            self.num_tags, self.num_tags), requires_grad=True)
         self.transitions.data[self.start_idx, :] = IMPOSSIBLE
         self.transitions.data[:, self.stop_idx] = IMPOSSIBLE
 
@@ -166,15 +223,18 @@ class CRF(nn.Module):
         B, L, C = features.shape
 
         # emission score
-        emit_scores = features.gather(dim=2, index=tags.unsqueeze(-1)).squeeze(-1)
+        emit_scores = features.gather(
+            dim=2, index=tags.unsqueeze(-1)).squeeze(-1)
 
         # transition score
-        start_tag = torch.full((B, 1), self.start_idx, dtype=torch.long, device=tags.device)
+        start_tag = torch.full((B, 1), self.start_idx,
+                               dtype=torch.long, device=tags.device)
         tags = torch.cat([start_tag, tags], dim=1)  # [B, L+1]
         trans_scores = self.transitions[tags[:, 1:], tags[:, :-1]]
 
         # last transition score to STOP tag
-        last_tag = tags.gather(dim=1, index=masks.sum(1).long().unsqueeze(1)).squeeze(1)  # [B]
+        last_tag = tags.gather(dim=1, index=masks.sum(
+            1).long().unsqueeze(1)).squeeze(1)  # [B]
         last_score = self.transitions[self.stop_idx, last_tag]
 
         score = ((trans_scores + emit_scores) * masks).sum(1) + last_score
@@ -191,10 +251,12 @@ class CRF(nn.Module):
         """
         B, L, C = features.shape
 
-        bps = torch.zeros(B, L, C, dtype=torch.long, device=features.device)  # back pointers
+        bps = torch.zeros(B, L, C, dtype=torch.long,
+                          device=features.device)  # back pointers
 
         # Initialize the viterbi variables in log space
-        max_score = torch.full((B, C), IMPOSSIBLE, device=features.device)  # [B, C]
+        max_score = torch.full(
+            (B, C), IMPOSSIBLE, device=features.device)  # [B, C]
         max_score[:, self.start_idx] = 0
 
         for t in range(L):
@@ -202,10 +264,12 @@ class CRF(nn.Module):
             emit_score_t = features[:, t]  # [B, C]
 
             # [B, 1, C] + [C, C]
-            acc_score_t = max_score.unsqueeze(1) + self.transitions  # [B, C, C]
+            acc_score_t = max_score.unsqueeze(
+                1) + self.transitions  # [B, C, C]
             acc_score_t, bps[:, t, :] = acc_score_t.max(dim=-1)
             acc_score_t += emit_score_t
-            max_score = acc_score_t * mask_t + max_score * (1 - mask_t)  # max_score or acc_score_t
+            max_score = acc_score_t * mask_t + max_score * \
+                (1 - mask_t)  # max_score or acc_score_t
 
         # Transition to STOP_TAG
         max_score += self.transitions[self.stop_idx]
@@ -237,14 +301,16 @@ class CRF(nn.Module):
         """
         B, L, C = features.shape
 
-        scores = torch.full((B, C), IMPOSSIBLE, device=features.device)  # [B, C]
+        scores = torch.full((B, C), IMPOSSIBLE,
+                            device=features.device)  # [B, C]
         scores[:, self.start_idx] = 0.
         trans = self.transitions.unsqueeze(0)  # [1, C, C]
 
         # Iterate through the sentence
         for t in range(L):
             emit_score_t = features[:, t].unsqueeze(2)  # [B, C, 1]
-            score_t = scores.unsqueeze(1) + trans + emit_score_t  # [B, 1, C] + [1, C, C] + [B, C, 1] => [B, C, C]
+            # [B, 1, C] + [1, C, C] + [B, C, 1] => [B, C, C]
+            score_t = scores.unsqueeze(1) + trans + emit_score_t
             score_t = log_sum_exp(score_t)  # [B, C]
 
             mask_t = masks[:, t].unsqueeze(1)  # [B, 1]
