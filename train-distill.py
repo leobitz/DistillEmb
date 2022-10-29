@@ -119,8 +119,17 @@ word2vec_emb_path = args.word2vec_path
 train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
+import os
+if not (os.path.exists(fasttext_emb_path) and os.path.exists(word2vec_emb_path) and os.path.exists(train_corpus_path)):
+    print("File doesn't exist")
+    
+else:
+    print("ready")
+
 ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
+print("FT loaded")
 w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
+print("W2V loaded")
 # w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
 # vocab = set(w2v_emb.keys())
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
