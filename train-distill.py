@@ -115,7 +115,11 @@ checkpoint_cb = ModelCheckpoint(
     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
 cbs.append(checkpoint_cb)
 
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=cbs)
+trainer = pl.Trainer.from_argparse_args(args, 
+                        logger=logger, 
+                        num_workers=0,
+                        devices=1,
+                        callbacks=cbs)
 
 
 batch_size = args.batch_size
