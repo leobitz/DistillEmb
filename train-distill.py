@@ -1,3 +1,4 @@
+from time import sleep
 import random
 from argparse import ArgumentParser
 
@@ -174,6 +175,7 @@ train_dataloader = DataLoader(
 test_dataloader = DataLoader(
     test_dataset, batch_size=batch_size)
 
+sleep(60 * 10)
 
-trainer.fit(model=DistillModule(**vars(args)),
-            train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
+# trainer.fit(model=DistillModule(**vars(args)),
+#             train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
