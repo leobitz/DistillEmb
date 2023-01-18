@@ -117,7 +117,6 @@ cbs.append(checkpoint_cb)
 
 trainer = pl.Trainer.from_argparse_args(args, 
                         logger=logger, 
-                        num_workers=0,
                         devices=1,
                         callbacks=cbs)
 
@@ -167,7 +166,11 @@ test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2
 
 
 train_dataloader = DataLoader(
-    train_dataset, shuffle=True,  batch_size=batch_size)
+    train_dataset, 
+    num_workers=0, 
+    pin_memory=True,
+    shuffle=True,  
+    batch_size=batch_size)
 test_dataloader = DataLoader(
     test_dataset, batch_size=batch_size)
 
