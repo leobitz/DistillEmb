@@ -156,27 +156,28 @@ print(f"Training vocab: {len(train_vocab)}, Test vocab: {len(test_vocab)}")
 print(f"Training on {len(words)} words")
 vocab2index = {v: k for k, v in enumerate(train_vocab)}
 index2vocab = {k: v for k, v in enumerate(train_vocab)}
-
-train_dataset = DistillDataset(words=words, vocab=train_vocab,
-                               vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
-
-test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
-                              w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-                              charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
-
-
-train_dataloader = DataLoader(
-    train_dataset, 
-    num_workers=0, 
-    pin_memory=True,
-    shuffle=True,  
-    batch_size=batch_size)
-test_dataloader = DataLoader(
-    test_dataset, batch_size=batch_size)
-
 print("sleeping")
 sleep(60 * 15)
+
+# train_dataset = DistillDataset(words=words, vocab=train_vocab,
+#                                vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+#                                charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
+
+# test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
+#                               w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+#                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
+
+
+# train_dataloader = DataLoader(
+#     train_dataset, 
+#     num_workers=0, 
+#     pin_memory=True,
+#     shuffle=True,  
+#     batch_size=batch_size)
+# test_dataloader = DataLoader(
+#     test_dataset, batch_size=batch_size)
+
+
 
 # trainer.fit(model=DistillModule(**vars(args)),
 #             train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
