@@ -69,7 +69,7 @@ class LSTMTextClassifier(nn.Module):
 class DistillLSTMTextClassifier(nn.Module):
 
     def __init__(self, input_size, hidden_size, n_outputs, charset_path, train_embeder=True,
-             fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1):
+             fc_dropout=0.6, emb_dropout=0.6, rnn_dropout=0.6, num_rnn_layers=1, distill_model_size='small'):
         super(DistillLSTMTextClassifier, self).__init__()
         
         self.input_size = input_size
@@ -83,7 +83,7 @@ class DistillLSTMTextClassifier(nn.Module):
 
         self.fc1 = nn.Linear(hidden_size*2, n_outputs)
         
-        self.embedding = create_am_distill_emb(charset_path, emb_dropout)
+        self.embedding = create_am_distill_emb(charset_path, emb_dropout, model_size=distill_model_size)
         self.embedding.requires_grad_(train_embeder)
         
         
@@ -151,6 +151,7 @@ def create_model(hparams, word2index):
                         fc_dropout=hparams.fc_dropout,
                         rnn_dropout=hparams.rnn_dropout,
                         emb_dropout=hparams.emb_dropout,
-                        num_rnn_layers=hparams.num_rnn_layers)
+                        num_rnn_layers=hparams.num_rnn_layers,
+                        distill_model_size=hparams.model_size)
 
     return model
