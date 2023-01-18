@@ -110,7 +110,7 @@ if args.early_stop == 1:
 
 checkpoint_cb = ModelCheckpoint(
     save_top_k=-1,
-    every_n_epochs=8,
+    every_n_epochs=4,
     dirpath=f'saves/{args.exp_name}',
     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
 cbs.append(checkpoint_cb)
