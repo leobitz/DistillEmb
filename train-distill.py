@@ -14,6 +14,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import lib
 import distill_emb_model
 from distill_dataset import DistillDataset
+from pytorch_lightning.loggers import WandbLogger
 
 random.seed(1000)
 torch.random.manual_seed(10000)
@@ -101,7 +102,7 @@ parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
-logger = TensorBoardLogger("logs", name=args.exp_name)
+logger = WandbLogger("Distill", name=args.exp_name)
 cbs = []
 if args.early_stop == 1:
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
