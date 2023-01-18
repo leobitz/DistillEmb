@@ -102,7 +102,7 @@ parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
-logger = WandbLogger("Distill", name=args.exp_name)
+logger = WandbLogger(project="Distill", name=args.exp_name)
 cbs = []
 if args.early_stop == 1:
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
