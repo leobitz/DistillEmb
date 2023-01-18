@@ -138,6 +138,8 @@ class ClassifyModule(pl.LightningModule):
                             help='the dimension of the RNN hidden state')
         parser.add_argument('--num-rnn-layers', type=int,
                             default=1, help='the number of RNN layers')
+        parser.add_argument('--model-size', type=str,
+                            default='small', help='model width: small (512) and large(768)')
         parser.add_argument('--weight-decay', type=float,
                             default=0., help='the L2 normalization parameter')
         parser.add_argument('--fc-dropout', type=float,

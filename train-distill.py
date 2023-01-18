@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn
 from torch.utils.data import DataLoader
-
+from pytorch_lightning.callbacks import ModelCheckpoint
 import lib
 import distill_emb_model
 from distill_dataset import DistillDataset
@@ -23,10 +23,11 @@ parser = ArgumentParser()
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.model =  distill_emb_model.create_am_distill_emb(charset_path, 0.0)
-        self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
-
         self.save_hyperparameters(ignore=['charset_path'])
+        self.model =  distill_emb_model.create_am_distill_emb(charset_path, 0.0, model_size=self.hparams.model_size)
+        self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
+        print(self.model)
+        
 
     def training_step(self, batch, batch_idx):
 
@@ -34,15 +35,9 @@ class DistillModule(pl.LightningModule):
         z = self.model(x)
 
         wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        floss = wloss#self.triplet_loss(z, pos_ft, neg_ft)
-        loss = wloss#(floss + wloss) / 2
-        # self.log("train_loss", loss)
-        # self.log("val_ft_loss", floss)
-        # self.log("val_w2v_loss", wloss)
+        floss = self.triplet_loss(z, pos_ft, neg_ft)
+        loss = (floss + wloss) / 2
 
-        # wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
-        # floss = self.triplet_loss(z, pos_ft, neg_ft)
-        # loss = (floss + wloss) / 2
         self.log("train_loss", loss)
         self.log("train_ft_loss", floss)
         self.log("train_w2v_loss", wloss)
@@ -56,27 +51,30 @@ class DistillModule(pl.LightningModule):
         self.log("epoch_train_loss_ft", floss)
         self.log("epoch_train_loss_w2v", wloss)
 
+    def validation_step(self, batch, batch_idx):
+        x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
+        z = self.model(x)
+
+        wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
+        floss = self.triplet_loss(z, pos_ft, neg_ft)
+        loss = (floss + wloss) / 2
+        self.log("epoch_val_loss", loss)
+        self.log("epoch_val_ft_loss", floss)
+        self.log("epoch_val_w2v_loss", wloss)
+
+
     def configure_optimizers(self):
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 1, gamma=self.hparams.step_gamma)
         return [self.optimizer], [self.scheduler]
-
-    # def validation_step(self, batch, batch_idx):
-    #     x, pos_w2v, pos_ft, neg_w2v, neg_ft = batch
-    #     z = self.model(x)
-
-    #     wloss = self.triplet_loss(z, pos_w2v, neg_w2v)
-    #     floss = self.triplet_loss(z, pos_ft, neg_ft)
-    #     loss = (floss + wloss) / 2
-    #     self.log("val_loss", loss)
-    #     self.log("val_ft_loss", floss)
-    #     self.log("val_w2v_loss", wloss)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("DistillModule")
         parser.add_argument("--learning_rate", type=float, default=0.001)
         parser.add_argument("--step_gamma", type=float, default=0.90)
+        parser.add_argument('--model-size', type=str,
+                            default='small', help='model width: small (512) and large(768)')
         return parent_parser
 
 parser = ArgumentParser()
@@ -107,6 +105,14 @@ cbs = []
 if args.early_stop == 1:
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
     cbs.append(early_stop_callback)
+
+checkpoint_cb = ModelCheckpoint(
+    save_top_k=-1,
+    every_n_epochs=8,
+    dirpath=f'saves/{args.exp_name}',
+    filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
+cbs.append(checkpoint_cb)
+
 trainer = pl.Trainer.from_argparse_args(args, logger=logger, callbacks=cbs)
 
 
@@ -121,8 +127,7 @@ charset_path = args.charset_path
 
 ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
 w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-# w2v_emb = lib.load_word_embeddings(word2vec_emb_path)
-# vocab = set(w2v_emb.keys())
+
 vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 if '</s>' in vocab:
     vocab.remove('</s>')
@@ -148,15 +153,16 @@ train_dataset = DistillDataset(words=words, vocab=train_vocab,
                                vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
                                charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
-# test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
-#                               w2v_vectors=w2v_emb, ft_vectors=ft_emb,
-#                               charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
+test_dataset = DistillDataset(words=words,  vocab=test_vocab, vocab2index=vocab2index,
+                              w2v_vectors=w2v_emb, ft_vectors=ft_emb,
+                              charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
 
 train_dataloader = DataLoader(
     train_dataset, shuffle=True,  batch_size=batch_size)
-# test_dataloader = DataLoader(
-#     test_dataset, batch_size=batch_size)
+test_dataloader = DataLoader(
+    test_dataset, batch_size=batch_size)
+
 
 trainer.fit(model=DistillModule(**vars(args)),
-            train_dataloaders=train_dataloader)
+            train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
