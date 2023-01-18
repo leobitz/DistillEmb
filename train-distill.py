@@ -132,10 +132,10 @@ train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
 
-# ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
-# print("FT loaded")
-# w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-# print("w2v loaded")
+ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
+print("FT loaded")
+w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
+print("w2v loaded")
 # vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
 # if '</s>' in vocab:
 #     vocab.remove('</s>')

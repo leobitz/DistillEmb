@@ -1,5 +1,5 @@
 import random
-
+import numpy as np
 
 def build_charset(charset_file, space_index=-1):
     """
@@ -43,7 +43,7 @@ def load_word_embeddings(file_path: str, target_words: set =None, header: bool =
                 word = line[0]
                 vec = line[1:]
                 if target_words == None or word in target_words:
-                    word2vec[word] = [float(x) for x in vec]
+                    word2vec[word] = np.array([float(x) for x in vec], dtype=np.float32)
                 
     return word2vec
 
