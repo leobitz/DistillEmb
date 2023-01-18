@@ -157,7 +157,7 @@ print(f"Training on {len(words)} words")
 vocab2index = {v: k for k, v in enumerate(train_vocab)}
 index2vocab = {k: v for k, v in enumerate(train_vocab)}
 print("sleeping")
-sleep(60 * 15)
+sleep(60 * 5)
 
 # train_dataset = DistillDataset(words=words, vocab=train_vocab,
 #                                vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
