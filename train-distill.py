@@ -175,7 +175,8 @@ train_dataloader = DataLoader(
 test_dataloader = DataLoader(
     test_dataset, batch_size=batch_size)
 
-sleep(60 * 10)
+print("sleeping")
+sleep(60 * 15)
 
 # trainer.fit(model=DistillModule(**vars(args)),
 #             train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
