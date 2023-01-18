@@ -103,23 +103,23 @@ parser = DistillModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 args = parser.parse_args()
 
-logger = TensorBoardLogger("logs", name=args.exp_name)
-cbs = []
-if args.early_stop == 1:
-    early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
-    cbs.append(early_stop_callback)
+# logger = TensorBoardLogger("logs", name=args.exp_name)
+# cbs = []
+# if args.early_stop == 1:
+#     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.00, patience=10, verbose=False, mode="min")
+#     cbs.append(early_stop_callback)
 
-checkpoint_cb = ModelCheckpoint(
-    save_top_k=-1,
-    every_n_epochs=4,
-    dirpath=f'saves/{args.exp_name}',
-    filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
-cbs.append(checkpoint_cb)
+# checkpoint_cb = ModelCheckpoint(
+#     save_top_k=-1,
+#     every_n_epochs=4,
+#     dirpath=f'saves/{args.exp_name}',
+#     filename='{epoch}-{val_loss:.5f}-{val_f1:.5f}')
+# cbs.append(checkpoint_cb)
 
-trainer = pl.Trainer.from_argparse_args(args, 
-                        logger=logger, 
-                        devices=1,
-                        callbacks=cbs)
+# trainer = pl.Trainer.from_argparse_args(args, 
+#                         logger=logger, 
+#                         devices=1,
+#                         callbacks=cbs)
 
 
 batch_size = args.batch_size
@@ -132,30 +132,30 @@ train_corpus_path = args.corpus
 charset_path = args.charset_path 
 
 
-ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
-print("FT loaded")
-w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
-print("w2v loaded")
-vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
-if '</s>' in vocab:
-    vocab.remove('</s>')
-print("Finished loading vectors")
-words = lib.load_corpus_words(train_corpus_path, line_prob=args.vector_load_ratio)
-words = [word for word in words if word in vocab]
-print("# of tokens: ", len(words))
-print("# of vocab: ", len(vocab))
+# ft_emb = lib.load_word_embeddings(fasttext_emb_path, word_prob=args.vector_load_ratio) # load about 50% of the vectors
+# print("FT loaded")
+# w2v_emb = lib.load_word_embeddings(word2vec_emb_path, target_words=ft_emb)
+# print("w2v loaded")
+# vocab = set(ft_emb.keys()).intersection(w2v_emb.keys())
+# if '</s>' in vocab:
+#     vocab.remove('</s>')
+# print("Finished loading vectors")
+# words = lib.load_corpus_words(train_corpus_path, line_prob=args.vector_load_ratio)
+# words = [word for word in words if word in vocab]
+# print("# of tokens: ", len(words))
+# print("# of vocab: ", len(vocab))
 
-train_size = int(len(vocab) * train_ratio)
-vocab = list(vocab)
-np.random.shuffle(vocab)
+# train_size = int(len(vocab) * train_ratio)
+# vocab = list(vocab)
+# np.random.shuffle(vocab)
 
-train_vocab = vocab[:train_size]
-test_vocab = vocab[train_size:]
+# train_vocab = vocab[:train_size]
+# test_vocab = vocab[train_size:]
 
-print(f"Training vocab: {len(train_vocab)}, Test vocab: {len(test_vocab)}")
-print(f"Training on {len(words)} words")
-vocab2index = {v: k for k, v in enumerate(train_vocab)}
-index2vocab = {k: v for k, v in enumerate(train_vocab)}
+# print(f"Training vocab: {len(train_vocab)}, Test vocab: {len(test_vocab)}")
+# print(f"Training on {len(words)} words")
+# vocab2index = {v: k for k, v in enumerate(train_vocab)}
+# index2vocab = {k: v for k, v in enumerate(train_vocab)}
 print("sleeping")
 sleep(60 * 5)
 
