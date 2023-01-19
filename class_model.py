@@ -102,7 +102,7 @@ class DistillLSTMTextClassifier(nn.Module):
             # xx = torch.relu(xx)
             xx = self.emb_dropout(xx)
             
-            # xx = self.norm0(xx).squeeze(0)
+            xx = xx.squeeze(0)
 
             remain_len = max_len - mask_idx[i]
             if remain_len > 0:
