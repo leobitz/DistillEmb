@@ -18,6 +18,9 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import os
 import numpy as np
 import warnings
+from pytorch_lightning.loggers import WandbLogger
+from wandb import wandb
+
 warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 class ClassifyModule(pl.LightningModule):
@@ -291,7 +294,10 @@ def main():
 
     print("Test mode:", args.test_models)
     if not args.test_models:
-        logger = TensorBoardLogger("logs", name=args.exp_name)
+        # logger = TensorBoardLogger("logs", name=args.exp_name)
+        wandb.init(entity="mteam")
+        logger = WandbLogger(name="am-sent", project=args.exp_name)
+
 
         trainer = pl.Trainer.from_argparse_args(args, 
             logger=logger, 
