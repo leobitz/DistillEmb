@@ -239,16 +239,20 @@ def main():
         word2index = {v: k for k, v in enumerate(vocab)}
         args.vocab_size = len(word2index)
 
+    exclude_classes=set(['mixed'])
     train_dataset = ClassificationDataset(data_rows=train_data, word2index=word2index, label2index=label2index,
                                         charset_path=args.charset_path, pad_char=' ', 
-                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"),
+                                        exclude_classes=exclude_classes)
 
     test_dataset = ClassificationDataset(data_rows=test_data, word2index=word2index, label2index=label2index,
                                         charset_path=args.charset_path, pad_char=' ', 
-                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"),
+                                        exclude_classes=exclude_classes)
     dev_dataset = ClassificationDataset(data_rows=dev_data, word2index=word2index, label2index=label2index,
                                         charset_path=args.charset_path, pad_char=' ', 
-                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"))
+                                        max_seq_len=args.max_seq_len, word_output=(args.emb_type != "CNN"),
+                                        exclude_classes=exclude_classes)
     if args.emb_type == 'CNN':
         collate_fun = distill_collate_fun
     else:
