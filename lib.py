@@ -1,5 +1,7 @@
 import random
+from typing import List
 import numpy as np
+import torch
 
 def build_charset(charset_file, space_index=-1):
     """
@@ -69,3 +71,9 @@ def load_corpus_words(path, line_prob=1.0):
                 words.extend(line.strip().split())
 
     return words
+
+def predict(model: torch.nn.Module, words: list[str], charset_path: str, max_word_len: int=13, pad_char: str=' ') -> torch.Tensor:
+    char2int, int2char = build_charset(charset_path, space_index=0)
+    ids = [word2ids(char2int, word, pad_char,  max_word_len) for word in words]
+    target_chars = torch.LongTensor(ids)
+    return model(target_chars)
