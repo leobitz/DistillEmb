@@ -25,7 +25,7 @@ parser = ArgumentParser()
 class DistillModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=['charset_path'])
+        self.save_hyperparameters()
         self.model =  distill_emb_model.create_am_distill_emb(self.hparams.charset_path, 0.0, model_size=self.hparams.model_size)
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
         print(self.model)
