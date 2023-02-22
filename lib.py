@@ -72,8 +72,8 @@ def load_corpus_words(path, line_prob=1.0):
 
     return words
 
-def predict(model: torch.nn.Module, words: list[str], charset_path: str, max_word_len: int=13, pad_char: str=' ') -> torch.Tensor:
+def predict(model: torch.nn.Module, words: list, charset_path: str, max_word_len: int=13, pad_char: str=' ', device='cuda') -> torch.Tensor:
     char2int, int2char = build_charset(charset_path, space_index=0)
     ids = [word2ids(char2int, word, pad_char,  max_word_len) for word in words]
-    target_chars = torch.LongTensor(ids)
+    target_chars = torch.LongTensor(ids).to(device)
     return model(target_chars)
