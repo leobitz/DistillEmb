@@ -91,7 +91,7 @@ def create_am_distill_emb(charset_path, dropout=0.0, model_size='large', study=F
     if study:
         class_name = DistillEmb_T
     else:
-        if model_size == "large":
+        if model_size == "small":
             class_name = DistillEmb
         else:
             class_name = DistillEmbLarge
@@ -189,7 +189,7 @@ class DistillEmb_T(nn.Module):
 class DistillEmbLarge(nn.Module):
     
     def __init__(self, char2int, output_size, pad_char, char_emb_size=64, kernel=5, dropout=0.1, model_size='small'):
-        super(DistillEmb, self).__init__()
+        super(DistillEmbLarge, self).__init__()
 
         self.n_inputs = 13 # number of characters
         self.output_size = output_size
@@ -216,8 +216,8 @@ class DistillEmbLarge(nn.Module):
         self.norm1 = nn.LayerNorm([64, 30])
         self.norm2 = nn.LayerNorm([128, 13])
         self.norm3 = nn.LayerNorm([shapes[0], 4])
-        self.norm4 = nn.LayerNorm(shapes[2])
-        self.norm5 = nn.LayerNorm(384)
+        self.norm4 = nn.LayerNorm(512)
+        self.norm5 = nn.LayerNorm(shapes[2])
 
         self.dropout = nn.Dropout(dropout)
     

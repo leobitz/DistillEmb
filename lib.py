@@ -3,6 +3,9 @@ from typing import List
 import numpy as np
 import torch
 
+START_CHAR = '‡'
+END_CHAR = '•'
+
 def build_charset(charset_file, space_index=-1):
     """
     returns character mapping to integer and vice versa
@@ -11,10 +14,10 @@ def build_charset(charset_file, space_index=-1):
     space_index: index of the space character. Spaces is included only if space_index >= 0
     """
     charset = open(charset_file, encoding='utf-8').read().strip()
+    charset = charset + '\n' + START_CHAR + END_CHAR
     charset = sorted([c for c in charset if c != ''])
 
-    if space_index > -1:
-        charset.insert(space_index, ' ')
+    charset.insert(0, ' ')
 
     char2int = {c: x for x, c in enumerate(charset)}
     int2char = {x: c for x, c in enumerate(charset)}

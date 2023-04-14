@@ -12,9 +12,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 import lib
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import distill_emb_model
 from distill_dataset import DistillDataset
 from pytorch_lightning.loggers import WandbLogger
+from create_model import create_distill_emb
 
 random.seed(1000)
 torch.random.manual_seed(10000)
@@ -23,12 +25,17 @@ parser = ArgumentParser()
 
 
 class DistillModule(pl.LightningModule):
-    def __init__(self, **kwargs):
+    def __init__(self, char2int, **kwargs):
         super().__init__()
         self.save_hyperparameters()
-        self.model =  distill_emb_model.create_am_distill_emb(self.hparams.charset_path, 0.0, model_size=self.hparams.model_size)
+        self.model =  create_distill_emb(char2int=char2int, 
+                                        dropout=0.0, 
+                                        output_size=300, 
+                                        pad_char=' ', 
+                                        model_size=self.hparams.model_size)
+        # self.save_hyperparameters(ignore=["char2int"])
         self.triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
-        print(self.model)
+        # print(self.model)
         
 
     def training_step(self, batch, batch_idx):
@@ -66,8 +73,13 @@ class DistillModule(pl.LightningModule):
 
 
     def configure_optimizers(self):
+        
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 1, gamma=self.hparams.step_gamma)
+        self.scheduler = CosineAnnealingLR(self.optimizer ,
+                              T_max = self.hparams.total_iteration, # Maximum number of iterations.
+                             eta_min = 1e-5) # Minimum learning rate.
+        
+        # self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 1, gamma=self.hparams.step_gamma)
         return [self.optimizer], [self.scheduler]
 
     @staticmethod
@@ -156,7 +168,7 @@ def main():
     print(f"Training vocab: {len(train_vocab)}, Test vocab: {len(test_vocab)}")
     print(f"Training on {len(words)} words")
     vocab2index = {v: k for k, v in enumerate(train_vocab)}
-    index2vocab = {k: v for k, v in enumerate(train_vocab)}
+    # index2vocab = {k: v for k, v in enumerate(train_vocab)}
 
     train_dataset = DistillDataset(words=words, vocab=train_vocab,
                                 vocab2index=vocab2index,  w2v_vectors=w2v_emb, ft_vectors=ft_emb,
@@ -166,7 +178,7 @@ def main():
                                 w2v_vectors=w2v_emb, ft_vectors=ft_emb,
                                 charset_path=args.charset_path, neg_seq_len=neg_seq_length, max_word_len=13, pad_char=' ')
 
-
+    args.total_iteration = args.max_epochs * len(train_dataset) // batch_size
     train_dataloader = DataLoader(
         train_dataset, 
         num_workers=0, 
@@ -176,7 +188,9 @@ def main():
     test_dataloader = DataLoader(
         test_dataset, batch_size=batch_size)
 
-
+    # print(next(iter(train_dataloader))[0].max())
+    args.char2int = train_dataset.char2int
+    args.model_size = 'small'
     trainer.fit(model=DistillModule(**vars(args)),
                 train_dataloaders=train_dataloader, val_dataloaders=test_dataloader)
 

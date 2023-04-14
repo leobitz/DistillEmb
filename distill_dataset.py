@@ -4,9 +4,11 @@ from torch.utils.data import Dataset
 import lib
 import random
 
-UNK_WORD = "<###>"
+START_CHAR = '‡'
+END_CHAR = '•'
+# UNK_WORD = "<###>"
 # char2int, int2char = lib.build_charset("data/am-charset.txt", space_index=0)
-PAD_TENSOR = [0, 0, 0, 0, 28, 3, 3, 3, 30, 0, 0, 0, 0]
+# PAD_TENSOR = [0, 0, 0, 0, 28, 3, 3, 3, 30, 0, 0, 0, 0]
 # print(PAD_TENSOR)
 class DistillDataset(Dataset):
     
@@ -23,6 +25,7 @@ class DistillDataset(Dataset):
 
         self.max_word_len = max_word_len
         self.char2int, self.int2char = lib.build_charset(charset_path, space_index=0)
+        # print(self.char2int)
 
 
     def __len__(self):
